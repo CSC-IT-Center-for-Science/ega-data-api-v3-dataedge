@@ -22,6 +22,7 @@ import eu.elixir.ega.ebi.dataedge.domain.entity.Transfer;
 import eu.elixir.ega.ebi.dataedge.domain.repository.TransferRepository;
 import eu.elixir.ega.ebi.dataedge.dto.DownloadEntry;
 import eu.elixir.ega.ebi.dataedge.dto.EventEntry;
+import eu.elixir.ega.ebi.dataedge.dto.File;
 import eu.elixir.ega.ebi.dataedge.dto.HttpResult;
 import eu.elixir.ega.ebi.dataedge.dto.RequestTicket;
 import org.springframework.stereotype.Service;
@@ -36,14 +37,21 @@ import java.net.URI;
 import java.security.DigestInputStream;
 import java.security.DigestOutputStream;
 import java.security.MessageDigest;
+import java.sql.Timestamp;
 import java.util.Arrays;
 import java.util.Calendar;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.client.RequestCallback;
 import org.springframework.web.client.ResponseExtractor;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -72,15 +80,59 @@ public class RemoteDownloadServiceImpl implements DownloadService {
     private DownloaderLogService downloaderLogService;
     
     @Override
-    public void download(String ticket,
-                         HttpServletRequest request,
-                         HttpServletResponse response) {
+    public void downloadTicket(String ticket,
+                               HttpServletRequest request,
+                               HttpServletResponse response) {
         // Get Ticket Details
         RequestTicket ticketObject = restTemplate.getForObject(SERVICE_URL + "/request/ticket/{ticket}/", RequestTicket.class, ticket);
         if (ticketObject==null) {
             throw new NotFoundException("Ticket not Found", ticket);
         }
 
+        // No further verification - file is encrypted using previously specified key - only user knows it
+        boolean success = download(ticketObject, response);
+
+        // Finally - if the download was successful, delete the ticket!
+        if (success) {
+            restTemplate.delete(SERVICE_URL + "/request/{user_email}/ticket/{ticket}", ticketObject.getUserEmail(), ticket);
+        }
+    }
+    
+    @Override
+    public void downloadFile(Authentication auth, 
+                             String file_id, 
+                             String key, 
+                             String start, 
+                             String end, 
+                             HttpServletRequest request, 
+                             HttpServletResponse response) {
+
+        // Validate File Permissions - necessary because this is direct download!
+        File f = getReqFile(file_id, auth);
+        
+        // Simulate a ticket
+        if (f!=null) {
+            String user_email = auth.getName();
+            RequestTicket ticketObject = new RequestTicket(user_email,
+                                                           "DIRECT",
+                                                           "0",
+                                                           f.getStableId(),
+                                                           key,
+                                                           "aes128",
+                                                           "N/A",
+                                                           "DIRECT",
+                                                           new Timestamp(System.currentTimeMillis()),
+                                                           Long.valueOf(start),
+                                                           Long.valueOf(end));
+            download(ticketObject, response);
+        }
+    }
+
+    /*
+     * Download Function
+     */
+    private boolean download(RequestTicket ticketObject,
+                             HttpServletResponse response) {
         // Build Header - Specify UUID (Allow later stats query regarding this transfer)
         UUID dlIdentifier = UUID.randomUUID();
         String headerValue = dlIdentifier.toString();
@@ -164,11 +216,8 @@ public class RemoteDownloadServiceImpl implements DownloadService {
             System.out.println("Success? " + success + ", Speed: " + speed + " MB/s");
             DownloadEntry dle = getDownloadEntry(success, speed, ticketObject);
             downloaderLogService.logDownload(dle);
-
-            // Finally - if the download was successful, delete the ticket!
-            if (success) {
-                restTemplate.delete(SERVICE_URL + "/request/{user_email}/ticket/{ticket}", ticketObject.getUserEmail(), ticket);
-            }
+        
+            return success;
         }
     }
     
@@ -244,5 +293,31 @@ public class RemoteDownloadServiceImpl implements DownloadService {
             eev.setCreated(new java.sql.Timestamp(Calendar.getInstance().getTime().getTime())); 
         
         return eev;
+    }
+
+    private File getReqFile(String file_id, Authentication auth) {
+        
+        // Obtain all Authorised Datasets
+        HashSet<String> permissions = new HashSet<>();
+        Collection<? extends GrantedAuthority> authorities = auth.getAuthorities();
+        Iterator<? extends GrantedAuthority> iterator = authorities.iterator();
+        while (iterator.hasNext()) {
+            GrantedAuthority next = iterator.next();
+            permissions.add(next.getAuthority());
+        }
+        
+        File reqFile = null;
+        ResponseEntity<File[]> forEntity = restTemplate.getForEntity(SERVICE_URL + "/file/{file_id}", File[].class, file_id);
+        File[] body = forEntity.getBody();
+        if (body!=null) {
+            for (File f:body) {
+                String dataset_id = f.getDatasetStableId();
+                if (permissions.contains(dataset_id)) {
+                    reqFile = f;
+                    break;
+                }
+            }
+        }
+        return reqFile;
     }
 }

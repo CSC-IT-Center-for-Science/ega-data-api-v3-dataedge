@@ -20,9 +20,12 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import static org.springframework.web.bind.annotation.RequestMethod.GET;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 
@@ -39,16 +42,36 @@ public class DownloadController {
     DownloadService downloadService;
     
     @RequestMapping(value = "/{download_ticket}", method = GET)
-    public void download(@PathVariable String download_ticket,
+    public void downloadTicket(@PathVariable String download_ticket,
                          HttpServletRequest request,
                          HttpServletResponse response) {
         
         // Get Ticket from DOWNLOADER
-        downloadService.download(download_ticket,
-                                 request,
-                                 response);
+        downloadService.downloadTicket(download_ticket,
+                                       request,
+                                       response);
         
     }
     
+    @RequestMapping(value = "/file/{file_id}", method = GET)
+    public void downloadFile(@PathVariable String file_id,
+                             @RequestParam("destinationKey") String destinationKey,
+                             @RequestParam("startCoordinate") String startCoordinate,
+                             @RequestParam("endCoordinate") String endCoordinate,
+                             HttpServletRequest request,
+                             HttpServletResponse response) {
+        
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+
+        // Download File Directly
+        downloadService.downloadFile(auth,
+                                     file_id,
+                                     destinationKey,
+                                     startCoordinate,
+                                     endCoordinate,
+                                     request,
+                                     response);
+        
+    }
     
 }

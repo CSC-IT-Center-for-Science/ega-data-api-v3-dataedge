@@ -17,6 +17,7 @@ package eu.elixir.ega.ebi.dataedge.service;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import org.springframework.security.core.Authentication;
 
 /**
  *
@@ -24,7 +25,7 @@ import javax.servlet.http.HttpServletResponse;
  */
 public interface FileService {
     
-    public void getFile(String user_email, 
+    public void getFile(Authentication auth, 
                         String file_id,
                         String destinationFormat,
                         String destinationKey,
@@ -33,7 +34,7 @@ public interface FileService {
                         HttpServletRequest request,
                         HttpServletResponse response);
     
-    public Object getFileHeader(String user_email, 
+    public Object getFileHeader(Authentication auth, 
                                 String file_id,
                                 String destinationFormat,
                                 String destinationKey);

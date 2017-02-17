@@ -43,15 +43,14 @@ public class FileController {
     @RequestMapping(value = "/{file_id}", method = GET)
     public void getFile(@PathVariable String file_id,
                         @RequestParam(value = "destinationFormat", required = false, defaultValue="aes128") String destinationFormat,
-                        @RequestParam(value = "destinationKey", required = false) String destinationKey,
-                        @RequestParam(value = "startCoordinate", required = false) long startCoordinate,
-                        @RequestParam(value = "endCoordinate", required = false) long endCoordinate, 
+                        @RequestParam(value = "destinationKey", required = false, defaultValue = "") String destinationKey,
+                        @RequestParam(value = "startCoordinate", required = false, defaultValue = "0") long startCoordinate,
+                        @RequestParam(value = "endCoordinate", required = false, defaultValue = "0") long endCoordinate, 
                         HttpServletRequest request,
                         HttpServletResponse response) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        String user_email = auth.getName();        
 
-        fileService.getFile(user_email, 
+        fileService.getFile(auth, 
                             file_id,
                             destinationFormat,
                             destinationKey,
@@ -61,14 +60,14 @@ public class FileController {
                             response);
     }
 
+    // Experimental - Return a BAM Header
     @RequestMapping(value = "/{file_id}/header", method = GET)
     public Object getFileHeader(@PathVariable String file_id,
                               @RequestParam(value = "destinationFormat", required = false, defaultValue="aes128") String destinationFormat,
-                              @RequestParam(value = "destinationKey", required = false) String destinationKey) {
+                              @RequestParam(value = "destinationKey", required = false, defaultValue = "") String destinationKey) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        String user_email = auth.getName();        
         
-        return fileService.getFileHeader(user_email, 
+        return fileService.getFileHeader(auth, 
                                          file_id,
                                          destinationFormat,
                                          destinationKey);

@@ -17,6 +17,7 @@ package eu.elixir.ega.ebi.dataedge.service;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import org.springframework.security.core.Authentication;
 
 
 /**
@@ -25,8 +26,15 @@ import javax.servlet.http.HttpServletResponse;
  */
 public interface DownloadService {
     
-    public void download(String ticket,
-                         HttpServletRequest request,
-                         HttpServletResponse response);
+    public void downloadTicket(String ticket,
+                               HttpServletRequest request,
+                               HttpServletResponse response);
        
+    public void downloadFile(Authentication auth,
+                             String file_id,
+                             String key,
+                             String start,
+                             String end,
+                             HttpServletRequest request,
+                             HttpServletResponse response);
 }

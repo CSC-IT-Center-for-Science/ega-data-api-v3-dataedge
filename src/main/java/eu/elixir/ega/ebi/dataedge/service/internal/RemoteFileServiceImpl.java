@@ -38,12 +38,18 @@ import java.security.DigestOutputStream;
 import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.Calendar;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RequestCallback;
 import org.springframework.web.client.ResponseExtractor;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -72,7 +78,7 @@ public class RemoteFileServiceImpl implements FileService {
     private DownloaderLogService downloaderLogService;
     
     @Override
-    public void getFile(String user_email, 
+    public void getFile(Authentication auth, 
                         String file_id,
                         String destinationFormat,
                         String destinationKey,
@@ -82,7 +88,7 @@ public class RemoteFileServiceImpl implements FileService {
                         HttpServletResponse response) {
 
         // Ascertain Access Permissions for specified File ID
-        File reqFile = getReqFile(file_id, user_email);
+        File reqFile = getReqFile(file_id, auth);
 
         // Build Header - Specify UUID (Allow later stats query regarding this transfer)
         UUID dlIdentifier = UUID.randomUUID();
@@ -95,6 +101,8 @@ public class RemoteFileServiceImpl implements FileService {
         MessageDigest outDigest = null;
         
         if (reqFile != null) {
+            String user_email = auth.getName(); // For Logging
+
             try {
                 // Get Send Stream - http Response, wrap in Digest Stream
                 outDigest = MessageDigest.getInstance("MD5");
@@ -173,11 +181,11 @@ public class RemoteFileServiceImpl implements FileService {
     }
 
     @Override
-    public Object getFileHeader(String user_email, String file_id, String destinationFormat, String destinationKey) {
+    public Object getFileHeader(Authentication auth, String file_id, String destinationFormat, String destinationKey) {
         Object header = null;
         
         // Ascertain Access Permissions for specified File ID
-        File reqFile = getReqFile(file_id, user_email);
+        File reqFile = getReqFile(file_id, auth);
         if (reqFile!=null) {
             header = restTemplate.getForObject(RES_URL + "/ga4gh/{fileId}/header", Object.class, file_id);
         }
@@ -215,21 +223,44 @@ public class RemoteFileServiceImpl implements FileService {
     private URI getResUri(String fileStableId,
                           String destFormat,
                           String destKey,
-                          long startCoord,
-                          long endCoord) {
+                          Long startCoord,
+                          Long endCoord) {
         destFormat = destFormat.equals("AES")?"aes128":destFormat; // default to 128-bit if not specified
         String url = RES_URL + "/file/archive/" + fileStableId;
-        UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(url)
-                .queryParam("destinationFormat", destFormat)
-                .queryParam("destinationKey", destKey)
-                .queryParam("startCoordinate", startCoord)
-                .queryParam("endCoordinate", endCoord);
+        
+        // Build components based on Parameters provided
+        UriComponentsBuilder builder = null;
+        
+        if (startCoord==0 && endCoord==0 && destFormat.equalsIgnoreCase("plain")) {
+            builder = UriComponentsBuilder.fromHttpUrl(url)
+                    .queryParam("destinationFormat", destFormat);
+        } else if (startCoord==0 && endCoord==0) {
+            builder = UriComponentsBuilder.fromHttpUrl(url)
+                    .queryParam("destinationFormat", destFormat)
+                    .queryParam("destinationKey", destKey);
+        } else if (destFormat.equalsIgnoreCase("plain")) {
+            builder = UriComponentsBuilder.fromHttpUrl(url)
+                    .queryParam("destinationFormat", destFormat)
+                    .queryParam("startCoordinate", startCoord)
+                    .queryParam("endCoordinate", endCoord);
+        } else {
+            builder = UriComponentsBuilder.fromHttpUrl(url)
+                    .queryParam("destinationFormat", destFormat)
+                    .queryParam("destinationKey", destKey)
+                    .queryParam("startCoordinate", startCoord)
+                    .queryParam("endCoordinate", endCoord);
+        }
 
         return builder.build().encode().toUri();
     }
     
     private Transfer getResSession(String resSession) {
-        Transfer sessionResponse = restTemplate.getForObject(RES_URL + "/session/{ticket}/", Transfer.class, resSession);
+        Transfer sessionResponse = null;
+        try {
+            sessionResponse = restTemplate.getForObject(RES_URL + "/session/{ticket}/", Transfer.class, resSession);
+        } catch (HttpClientErrorException ex) {
+            sessionResponse = new Transfer();
+        }
         return sessionResponse;
     }
     
@@ -267,15 +298,24 @@ public class RemoteFileServiceImpl implements FileService {
         return eev;
     }
     
-    private File getReqFile(String file_id, String user_email) {
+    private File getReqFile(String file_id, Authentication auth) {
+        
+        // Obtain all Authorised Datasets
+        HashSet<String> permissions = new HashSet<>();
+        Collection<? extends GrantedAuthority> authorities = auth.getAuthorities();
+        Iterator<? extends GrantedAuthority> iterator = authorities.iterator();
+        while (iterator.hasNext()) {
+            GrantedAuthority next = iterator.next();
+            permissions.add(next.getAuthority());
+        }
+        
         File reqFile = null;
         ResponseEntity<File[]> forEntity = restTemplate.getForEntity(SERVICE_URL + "/file/{file_id}", File[].class, file_id);
         File[] body = forEntity.getBody();
         if (body!=null) {
             for (File f:body) {
                 String dataset_id = f.getDatasetStableId();
-                String permission = restTemplate.getForObject(SERVICE_URL + "/user/{user_email}/datasets/{dataset_id}/", String.class, user_email, dataset_id);
-                if (permission.equalsIgnoreCase("approved")) {
+                if (permissions.contains(dataset_id)) {
                     reqFile = f;
                     break;
                 }
