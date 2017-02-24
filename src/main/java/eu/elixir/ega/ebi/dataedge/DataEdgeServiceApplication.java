@@ -22,10 +22,12 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cloud.netflix.eureka.EnableEurekaClient;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import springfox.documentation.swagger2.annotations.EnableSwagger2;
 
 @Configuration
 @SpringBootApplication
 @Import({MyConfiguration.class, OAuth2ResourceConfig.class})
+@EnableSwagger2
 @EnableEurekaClient
 public class DataEdgeServiceApplication {
 
