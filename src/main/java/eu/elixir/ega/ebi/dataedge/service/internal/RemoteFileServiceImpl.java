@@ -42,6 +42,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.StringTokenizer;
 import java.util.UUID;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -88,7 +89,7 @@ public class RemoteFileServiceImpl implements FileService {
                         HttpServletResponse response) {
 
         // Ascertain Access Permissions for specified File ID
-        File reqFile = getReqFile(file_id, auth);
+        File reqFile = getReqFile(file_id, auth, request); // request added for ELIXIR
 
         // Build Header - Specify UUID (Allow later stats query regarding this transfer)
         UUID dlIdentifier = UUID.randomUUID();
@@ -185,7 +186,7 @@ public class RemoteFileServiceImpl implements FileService {
         Object header = null;
         
         // Ascertain Access Permissions for specified File ID
-        File reqFile = getReqFile(file_id, auth);
+        File reqFile = getReqFile(file_id, auth, null);
         if (reqFile!=null) {
             header = restTemplate.getForObject(RES_URL + "/ga4gh/{fileId}/header", Object.class, file_id);
         }
@@ -298,15 +299,28 @@ public class RemoteFileServiceImpl implements FileService {
         return eev;
     }
     
-    private File getReqFile(String file_id, Authentication auth) {
+    private File getReqFile(String file_id, Authentication auth, HttpServletRequest request) {
         
-        // Obtain all Authorised Datasets
+        // Obtain all Authorised Datasets (Provided by EGA AAI)
         HashSet<String> permissions = new HashSet<>();
         Collection<? extends GrantedAuthority> authorities = auth.getAuthorities();
-        Iterator<? extends GrantedAuthority> iterator = authorities.iterator();
-        while (iterator.hasNext()) {
-            GrantedAuthority next = iterator.next();
-            permissions.add(next.getAuthority());
+        if (authorities != null && authorities.size() > 0) {        
+            Iterator<? extends GrantedAuthority> iterator = authorities.iterator();
+            while (iterator.hasNext()) {
+                GrantedAuthority next = iterator.next();
+                permissions.add(next.getAuthority());
+            }
+        } else if (request!=null) { // ELIXIR User Case: Obtain Permmissions from X-Permissions Header
+            String permissions_ = request.getHeader("X-Permissions");
+            if (permissions_ != null && permissions_.length() > 0) {
+                StringTokenizer t = new StringTokenizer(permissions_, ",");
+                while (t!=null && t.hasMoreTokens()) {
+                    String ds = t.nextToken();
+                    if (ds != null) {
+                        permissions.add(ds);
+                    }
+                }
+            }            
         }
         
         File reqFile = null;
