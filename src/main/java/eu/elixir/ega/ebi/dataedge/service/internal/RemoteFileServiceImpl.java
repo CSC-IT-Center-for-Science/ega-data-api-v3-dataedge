@@ -64,7 +64,8 @@ import org.springframework.web.util.UriComponentsBuilder;
 @EnableDiscoveryClient
 public class RemoteFileServiceImpl implements FileService {
 
-    private final String SERVICE_URL = "http://DATA";
+    //private final String SERVICE_URL = "http://DATA";
+    private final String SERVICE_URL = "http://DOWNLOADER";
     private final String RES_URL = "http://RES";
     
     @Autowired
@@ -302,13 +303,15 @@ public class RemoteFileServiceImpl implements FileService {
     private File getReqFile(String file_id, Authentication auth, HttpServletRequest request) {
         
         // Obtain all Authorised Datasets (Provided by EGA AAI)
+        String dataset = "";
         HashSet<String> permissions = new HashSet<>();
         Collection<? extends GrantedAuthority> authorities = auth.getAuthorities();
         if (authorities != null && authorities.size() > 0) {        
             Iterator<? extends GrantedAuthority> iterator = authorities.iterator();
             while (iterator.hasNext()) {
                 GrantedAuthority next = iterator.next();
-                permissions.add(next.getAuthority());
+                dataset = next.getAuthority();
+                permissions.add(dataset);
             }
         } else if (request!=null) { // ELIXIR User Case: Obtain Permmissions from X-Permissions Header
             String permissions_ = request.getHeader("X-Permissions");
@@ -318,14 +321,17 @@ public class RemoteFileServiceImpl implements FileService {
                     String ds = t.nextToken();
                     if (ds != null) {
                         permissions.add(ds);
+                        dataset = ds;
                     }
                 }
             }            
         }
         
         File reqFile = null;
-        ResponseEntity<File[]> forEntity = restTemplate.getForEntity(SERVICE_URL + "/file/{file_id}", File[].class, file_id);
-        File[] body = forEntity.getBody();
+        //ResponseEntity<File[]> forEntity = restTemplate.getForEntity(SERVICE_URL + "/file/{file_id}", File[].class, file_id);
+        File[] body = restTemplate.getForObject(SERVICE_URL + "/datasets/{dataset_id}/files", File[].class, dataset);
+
+        //File[] body = forEntity.getBody();
         if (body!=null) {
             for (File f:body) {
                 String dataset_id = f.getDatasetStableId();
