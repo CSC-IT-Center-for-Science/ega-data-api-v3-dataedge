@@ -16,15 +16,20 @@
 package eu.elixir.ega.ebi.dataedge.rest;
 
 import java.lang.management.ManagementFactory;
+import java.util.List;
+import java.util.Set;
 import javax.management.Attribute;
 import javax.management.AttributeList;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
+import javax.servlet.http.HttpServletRequest;
+import org.springframework.http.HttpHeaders;
+import org.springframework.web.bind.annotation.RequestHeader;
 
 import org.springframework.web.bind.annotation.RequestMapping;
+import static org.springframework.web.bind.annotation.RequestMethod.GET;
 import org.springframework.web.bind.annotation.RestController;
 
-import static org.springframework.web.bind.annotation.RequestMethod.GET;
 import org.springframework.web.bind.annotation.ResponseBody;
 
 /**
@@ -44,6 +49,34 @@ public class StatsController {
         } catch (Exception ex) {load = "Error";}
         
         return load;
+    }
+
+    /*
+     * TEST ONLY: Test responses with calls using various tokens and routes
+     */
+    @RequestMapping(value = "/testme", method = GET)
+    @ResponseBody
+    public String testme(HttpServletRequest servletRequest, @RequestHeader HttpHeaders headers) {
+        
+        String result = "Null";
+
+        result = "Headers: ";
+        Set<String> keySet = headers.keySet();
+        for (String k:keySet) {
+            result += k + " ";
+        }
+            
+        if (headers.containsKey("X-Permissions")) {
+            result += "\nPermissions: ";
+            List<String> get = headers.get("X-Permissions");
+            for (String g:get) {
+                result += g + " ";
+            }
+        }
+        
+        result += "\nOrigin: " + servletRequest.getRemoteAddr() + "\n";
+        
+        return result;
     }
 
     // Obtain local CPU Load (used by EBI Load Balancer as Heartbeat)
