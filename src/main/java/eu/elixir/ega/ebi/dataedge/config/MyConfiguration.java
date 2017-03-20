@@ -48,5 +48,5 @@ public class MyConfiguration {
                 .paths(PathSelectors.any())
                 .build()
                 .pathMapping("/");
-    }
+    }    
 }

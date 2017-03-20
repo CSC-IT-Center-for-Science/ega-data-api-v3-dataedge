@@ -68,6 +68,7 @@ public class OAuth2ResourceConfig extends ResourceServerConfigurerAdapter {
                         .antMatchers("/files/**")
                         .antMatchers("/demo/**")
                         .antMatchers("/download/file/**")
+                        .antMatchers("/stats/testme")
                         .antMatchers("/swagger-ui.html")
                         .antMatchers("/v2/api-docs").and()
                         .authorizeRequests().anyRequest().authenticated()
@@ -79,7 +80,8 @@ public class OAuth2ResourceConfig extends ResourceServerConfigurerAdapter {
         // customized User Authentication Converter simply changes the field name for extraction
         @Bean
 	public AccessTokenConverter accessTokenConverter() {
-                DefaultAccessTokenConverter myAccessTokenConverter = new DefaultAccessTokenConverter();
+                //DefaultAccessTokenConverter myAccessTokenConverter = new DefaultAccessTokenConverter();
+                MyAccessTokenConverter myAccessTokenConverter = new MyAccessTokenConverter();
                 myAccessTokenConverter.setUserTokenConverter(new MyUserAuthenticationConverter());
                 return myAccessTokenConverter;
 		//return new DefaultAccessTokenConverter();
@@ -97,7 +99,7 @@ public class OAuth2ResourceConfig extends ResourceServerConfigurerAdapter {
 		remoteTokenServices.setAccessTokenConverter(accessTokenConverter());
 		return remoteTokenServices;
 	}
-
+        
 	@Bean
 	public RemoteTokenServices remoteZuulTokenServices(final @Value("${auth.zuul.server.url}") String checkTokenUrl,
 			final @Value("${auth.zuul.server.clientId}") String clientId,
@@ -106,7 +108,7 @@ public class OAuth2ResourceConfig extends ResourceServerConfigurerAdapter {
 		remoteTokenServices.setCheckTokenEndpointUrl(checkTokenUrl);
 		remoteTokenServices.setClientId(clientId);
 		remoteTokenServices.setClientSecret(clientSecret);
-		remoteTokenServices.setAccessTokenConverter(accessTokenConverter());
+		//remoteTokenServices.setAccessTokenConverter(accessTokenConverter());
 		return remoteTokenServices;
 	}
 }
