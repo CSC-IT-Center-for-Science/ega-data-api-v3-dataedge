@@ -17,7 +17,6 @@ package eu.elixir.ega.ebi.dataedge.service.internal;
 
 import com.google.common.io.ByteStreams;
 import eu.elixir.ega.ebi.dataedge.config.GeneralStreamingException;
-import eu.elixir.ega.ebi.dataedge.config.MyConfiguration;
 import eu.elixir.ega.ebi.dataedge.domain.entity.Transfer;
 import eu.elixir.ega.ebi.dataedge.domain.repository.TransferRepository;
 import eu.elixir.ega.ebi.dataedge.dto.DownloadEntry;
@@ -318,7 +317,6 @@ public class RemoteFileServiceImpl implements FileService {
     
     private File getReqFile(String file_id, Authentication auth, HttpServletRequest request) {
 
-System.out.println("*** INSIDE GETREQFILE ***");
         // Obtain all Authorised Datasets (Provided by EGA AAI)
         HashSet<String> permissions = new HashSet<>();
         Collection<? extends GrantedAuthority> authorities = auth.getAuthorities();
