@@ -17,6 +17,7 @@ package eu.elixir.ega.ebi.dataedge.service.internal;
 
 import com.google.common.io.ByteStreams;
 import eu.elixir.ega.ebi.dataedge.config.GeneralStreamingException;
+import eu.elixir.ega.ebi.dataedge.config.VerifyMessage;
 import eu.elixir.ega.ebi.dataedge.domain.entity.Transfer;
 import eu.elixir.ega.ebi.dataedge.domain.repository.TransferRepository;
 import eu.elixir.ega.ebi.dataedge.dto.DownloadEntry;
@@ -327,16 +328,20 @@ public class RemoteFileServiceImpl implements FileService {
                 permissions.add(next.getAuthority());
             }
         } else if (request!=null) { // ELIXIR User Case: Obtain Permmissions from X-Permissions Header
-            String permissions_ = request.getHeader("X-Permissions");
-            if (permissions_ != null && permissions_.length() > 0) {
-                StringTokenizer t = new StringTokenizer(permissions_, ",");
-                while (t!=null && t.hasMoreTokens()) {
-                    String ds = t.nextToken();
-                    if (ds != null) {
-                        permissions.add(ds);
+            //String permissions_ = request.getHeader("X-Permissions");
+            try {
+                List<String> permissions_ = (new VerifyMessage(request.getHeader("X-Permissions"))).getPermissions();
+                if (permissions_ != null && permissions_.size() > 0) {
+                    //StringTokenizer t = new StringTokenizer(permissions_, ",");
+                    //while (t!=null && t.hasMoreTokens()) {
+                    for (String ds:permissions) {
+                        //String ds = t.nextToken();
+                        if (ds != null) {
+                            permissions.add(ds);
+                        }
                     }
-                }
-            }            
+                }            
+            } catch (Exception ex) {}
         }
         
         File reqFile = null;
