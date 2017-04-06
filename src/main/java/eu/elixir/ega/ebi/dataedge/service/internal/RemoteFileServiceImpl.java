@@ -16,6 +16,7 @@
 package eu.elixir.ega.ebi.dataedge.service.internal;
 
 import com.google.common.io.ByteStreams;
+import com.netflix.hystrix.contrib.javanica.annotation.HystrixCommand;
 import eu.elixir.ega.ebi.dataedge.config.GeneralStreamingException;
 import eu.elixir.ega.ebi.dataedge.config.VerifyMessage;
 import eu.elixir.ega.ebi.dataedge.domain.entity.Transfer;
@@ -81,6 +82,7 @@ public class RemoteFileServiceImpl implements FileService {
     private DownloaderLogService downloaderLogService;
     
     @Override
+    @HystrixCommand
     public void getFile(Authentication auth, 
                         String file_id,
                         String destinationFormat,
@@ -192,6 +194,7 @@ public class RemoteFileServiceImpl implements FileService {
     }
 
     @Override
+    @HystrixCommand
     public Object getFileHeader(Authentication auth, String file_id, String destinationFormat, String destinationKey) {
         Object header = null;
         
@@ -207,6 +210,7 @@ public class RemoteFileServiceImpl implements FileService {
     /*
      * Helper Functions
      */
+    @HystrixCommand
     private String getDigestText(byte[] inDigest) {
         BigInteger bigIntIn = new BigInteger(1,inDigest);
         String hashtext = bigIntIn.toString(16);
@@ -216,6 +220,7 @@ public class RemoteFileServiceImpl implements FileService {
         return hashtext;
     }
     
+    @HystrixCommand
     private HttpServletResponse setHeaders(HttpServletResponse response, String headerValue) {
         // Set headers for the response
         String headerKey = "X-Session";
@@ -231,6 +236,7 @@ public class RemoteFileServiceImpl implements FileService {
         return response;
     }
     
+    @HystrixCommand
     private URI getResUri(String fileStableIdPath,
                           String destFormat,
                           String destKey,
@@ -272,6 +278,7 @@ public class RemoteFileServiceImpl implements FileService {
         return builder.build().encode().toUri();
     }
     
+    @HystrixCommand
     private Transfer getResSession(String resSession) {
         Transfer sessionResponse = null;
         try {
@@ -282,6 +289,7 @@ public class RemoteFileServiceImpl implements FileService {
         return sessionResponse;
     }
     
+    @HystrixCommand
     private DownloadEntry getDownloadEntry(boolean success, double speed, String fileStableId,
                                                                           String clientIp,
                                                                           String user_email,
@@ -301,6 +309,7 @@ public class RemoteFileServiceImpl implements FileService {
         return dle;
     }
     
+    @HystrixCommand
     private EventEntry getEventEntry(Throwable t, String clientIp,
                                                   String ticket,
                                                   String user_email) {
@@ -316,6 +325,7 @@ public class RemoteFileServiceImpl implements FileService {
         return eev;
     }
     
+    @HystrixCommand
     private File getReqFile(String file_id, Authentication auth, HttpServletRequest request) {
 
         // Obtain all Authorised Datasets (Provided by EGA AAI)

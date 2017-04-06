@@ -15,6 +15,7 @@
  */
 package eu.elixir.ega.ebi.dataedge.service.internal;
 
+import com.netflix.hystrix.contrib.javanica.annotation.HystrixCommand;
 import eu.elixir.ega.ebi.dataedge.dto.DownloadEntry;
 import eu.elixir.ega.ebi.dataedge.dto.EventEntry;
 import eu.elixir.ega.ebi.dataedge.service.DownloaderLogService;
@@ -41,6 +42,7 @@ public class RemoteDownloaderLogServiceImpl implements DownloaderLogService {
     RestTemplate restTemplate;    
 
     @Override
+    @HystrixCommand
     public void logDownload(DownloadEntry downloadEntry) {
                 
         HttpHeaders headers = new HttpHeaders();
@@ -51,6 +53,7 @@ public class RemoteDownloaderLogServiceImpl implements DownloaderLogService {
     }
 
     @Override
+    @HystrixCommand
     public void logEvent(EventEntry eventEntry) {
         
         HttpHeaders headers = new HttpHeaders();

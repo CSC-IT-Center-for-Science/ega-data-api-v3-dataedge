@@ -15,6 +15,7 @@
  */
 package eu.elixir.ega.ebi.dataedge.service.internal;
 
+import com.netflix.hystrix.contrib.javanica.annotation.HystrixCommand;
 import eu.elixir.ega.ebi.dataedge.dto.File;
 import eu.elixir.ega.ebi.dataedge.service.DemoGA4GHService;
 import htsjdk.samtools.SAMFileHeader;
@@ -47,6 +48,7 @@ public class DemoGA4GHServiceImpl implements DemoGA4GHService {
     RestTemplate restTemplate;
     
     @Override
+    @HystrixCommand
     @ResponseBody
     public SAMFileHeader getHeader(String fileId) {
         
