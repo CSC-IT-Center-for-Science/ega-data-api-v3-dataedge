@@ -16,6 +16,7 @@
 package eu.elixir.ega.ebi.dataedge.service.internal;
 
 import com.google.common.io.ByteStreams;
+import com.netflix.hystrix.contrib.javanica.annotation.HystrixCommand;
 import eu.elixir.ega.ebi.dataedge.config.GeneralStreamingException;
 import eu.elixir.ega.ebi.dataedge.config.NotFoundException;
 import eu.elixir.ega.ebi.dataedge.domain.entity.Transfer;
@@ -80,6 +81,7 @@ public class RemoteDownloadServiceImpl implements DownloadService {
     private DownloaderLogService downloaderLogService;
     
     @Override
+    @HystrixCommand
     public void downloadTicket(String ticket,
                                HttpServletRequest request,
                                HttpServletResponse response) {
@@ -99,6 +101,7 @@ public class RemoteDownloadServiceImpl implements DownloadService {
     }
     
     @Override
+    @HystrixCommand
     public void downloadFile(Authentication auth, 
                              String file_id, 
                              String key, 
@@ -131,6 +134,7 @@ public class RemoteDownloadServiceImpl implements DownloadService {
     /*
      * Download Function
      */
+    @HystrixCommand
     private boolean download(RequestTicket ticketObject,
                              HttpServletResponse response) {
         // Build Header - Specify UUID (Allow later stats query regarding this transfer)
@@ -224,6 +228,7 @@ public class RemoteDownloadServiceImpl implements DownloadService {
     /*
      * Helper Functions
      */
+    @HystrixCommand
     private String getDigestText(byte[] inDigest) {
         BigInteger bigIntIn = new BigInteger(1,inDigest);
         String hashtext = bigIntIn.toString(16);
@@ -233,6 +238,7 @@ public class RemoteDownloadServiceImpl implements DownloadService {
         return hashtext;
     }
     
+    @HystrixCommand
     private HttpServletResponse setHeaders(HttpServletResponse response, String headerValue) {
         // Set headers for the response
         String headerKey = "X-Session";
@@ -248,6 +254,7 @@ public class RemoteDownloadServiceImpl implements DownloadService {
         return response;
     }
     
+    @HystrixCommand
     private URI getResUri(RequestTicket ticketObject) {
         String destFormat = ticketObject.getEncryptionType();
         destFormat = destFormat.equals("AES")?"aes128":destFormat; // default to 128-bit if not specified
@@ -261,11 +268,13 @@ public class RemoteDownloadServiceImpl implements DownloadService {
         return builder.build().encode().toUri();
     }
     
+    @HystrixCommand
     private Transfer getResSession(String resSession) {
         Transfer sessionResponse = restTemplate.getForObject(RES_URL + "/session/{ticket}/", Transfer.class, resSession);
         return sessionResponse;
     }
     
+    @HystrixCommand
     private DownloadEntry getDownloadEntry(boolean success, double speed, RequestTicket ticketObject) {
         DownloadEntry dle = new DownloadEntry();
             dle.setDownloadLogId(0L);
@@ -282,6 +291,7 @@ public class RemoteDownloadServiceImpl implements DownloadService {
         return dle;
     }
     
+    @HystrixCommand
     private EventEntry getEventEntry(Throwable t, RequestTicket ticketObject) {
         EventEntry eev = new EventEntry();
             eev.setEventId("0");
@@ -295,6 +305,7 @@ public class RemoteDownloadServiceImpl implements DownloadService {
         return eev;
     }
 
+    @HystrixCommand
     private File getReqFile(String file_id, Authentication auth) {
         
         // Obtain all Authorised Datasets
