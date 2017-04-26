@@ -16,8 +16,12 @@
 package eu.elixir.ega.ebi.dataedge.service.internal;
 
 import com.google.common.io.ByteStreams;
+import com.netflix.appinfo.InstanceInfo;
+import com.netflix.discovery.EurekaClient;
 import com.netflix.hystrix.contrib.javanica.annotation.HystrixCommand;
 import eu.elixir.ega.ebi.dataedge.config.GeneralStreamingException;
+import eu.elixir.ega.ebi.dataedge.config.NotFoundException;
+import eu.elixir.ega.ebi.dataedge.config.PermissionDeniedException;
 import eu.elixir.ega.ebi.dataedge.config.VerifyMessage;
 import eu.elixir.ega.ebi.dataedge.domain.entity.Transfer;
 import eu.elixir.ega.ebi.dataedge.domain.repository.TransferRepository;
@@ -33,8 +37,25 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 import eu.elixir.ega.ebi.dataedge.service.FileService;
+import eu.elixir.ega.ebi.egacipher.EgaSeekableResStream;
+import htsjdk.samtools.DefaultSAMRecordFactory;
+import htsjdk.samtools.QueryInterval;
+import htsjdk.samtools.SAMFileHeader;
+import htsjdk.samtools.SAMFileWriter;
+import htsjdk.samtools.SAMFileWriterFactory;
+import htsjdk.samtools.SAMRecord;
+import htsjdk.samtools.SAMRecordIterator;
+import htsjdk.samtools.SamInputResource;
+import htsjdk.samtools.SamReader;
+import htsjdk.samtools.SamReaderFactory;
+import htsjdk.samtools.ValidationStringency;
+import htsjdk.samtools.seekablestream.SeekableStream;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.math.BigInteger;
+import java.net.MalformedURLException;
 import java.net.URI;
+import java.net.URL;
 import java.security.DigestInputStream;
 import java.security.DigestOutputStream;
 import java.security.MessageDigest;
@@ -45,6 +66,9 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.stream.Stream;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import org.springframework.http.HttpMethod;
@@ -65,7 +89,6 @@ import org.springframework.web.util.UriComponentsBuilder;
 @EnableDiscoveryClient
 public class RemoteFileServiceImpl implements FileService {
 
-    //private final String SERVICE_URL = "http://DATA";
     private final String SERVICE_URL = "http://DOWNLOADER";
     private final String RES_URL = "http://RES";
     
@@ -80,6 +103,9 @@ public class RemoteFileServiceImpl implements FileService {
     @Autowired
     private DownloaderLogService downloaderLogService;
     
+    @Autowired
+    private EurekaClient discoveryClient;
+
     @Override
     @HystrixCommand
     public void getFile(Authentication auth, 
@@ -185,25 +211,128 @@ public class RemoteFileServiceImpl implements FileService {
                     boolean success = outHashtext.equals(inHashtext);
                     double speed = (xferResult.getBytes()/1024.0/1024.0)/(timeDelta*1000.0);
                     System.out.println("Success? " + success + ", Speed: " + speed + " MB/s");
-                    DownloadEntry dle = getDownloadEntry(success, speed, file_id, "TODO CLientIp", user_email, destinationFormat);
+                    DownloadEntry dle = getDownloadEntry(success, speed, file_id, "TODO ClientIp", user_email, destinationFormat);
                     downloaderLogService.logDownload(dle);                
                 }
             }
         }
     }
 
+    /*
+     * GA4GH / Semantic Functionality: Use SAMTools to access a File in Cleversafe
+     */
+    
     @Override
     @HystrixCommand
-    public Object getFileHeader(Authentication auth, String file_id, String destinationFormat, String destinationKey) {
+    public Object getFileHeader(Authentication auth, 
+                                String file_id, 
+                                String destinationFormat, 
+                                String destinationKey) {
         Object header = null;
         
         // Ascertain Access Permissions for specified File ID
         File reqFile = getReqFile(file_id, auth, null);
-        if (reqFile!=null) {
-            header = restTemplate.getForObject(RES_URL + "/ga4gh/{fileId}/header", Object.class, file_id);
+        if (reqFile!=null) {            
+            // 'header' RES functionality; pull it out of RES into DataEdge for consistency
+            //header = restTemplate.getForObject(RES_URL + "/ga4gh/{fileId}/header", Object.class, reqFile.getStableId());
+            
+            // SeekableStream on top of RES (using Eureka to obtain RES Base URL)
+            URL resUrl = null;
+            try {
+                resUrl = new URL(resUrl() + "/file/archive/" + reqFile.getStableId()); // Just specify file ID
+                
+                SeekableStream cIn = new EgaSeekableResStream(resUrl); // Deals with coordinates
+
+                // SamReader with input stream based on RES URL
+                SamReader reader = 
+                    SamReaderFactory.make() 
+                      .validationStringency(ValidationStringency.LENIENT) 
+                      .samRecordFactory(DefaultSAMRecordFactory.getInstance()) 
+                      .open(SamInputResource.of(cIn));  
+                header = reader.getFileHeader();
+                reader.close();
+            } catch (MalformedURLException ex) {
+                Logger.getLogger(RemoteFileServiceImpl.class.getName()).log(Level.SEVERE, null, ex);
+            } catch (IOException ex) {
+                Logger.getLogger(RemoteFileServiceImpl.class.getName()).log(Level.SEVERE, null, ex);
+            }
         }
         
         return header;
+    }
+
+    @Override
+    @HystrixCommand
+    public void getById(Authentication auth, 
+                        String idType,
+                        String accession, 
+                        String format, 
+                        String reference,
+                        long start, 
+                        long end, 
+                        String destinationFormat, 
+                        String destinationKey, 
+                        HttpServletRequest request, 
+                        HttpServletResponse response) {
+        
+        String file_id = "";
+        if (idType.equalsIgnoreCase("file")) { // Currently only support File IDs
+            file_id = accession;
+        }
+        
+        // Ascertain Access Permissions for specified File ID
+        File reqFile = getReqFile(file_id, auth, null);
+        if (reqFile!=null) {
+            
+            // SeekableStream on top of RES (using Eureka to obtain RES Base URL)
+            URL resUrl = null;
+            try {
+                resUrl = new URL(resUrl() + "/file/archive/" + reqFile.getStableId()); // Just specify file ID
+            } catch (MalformedURLException ex) {;}
+            SeekableStream cIn = new EgaSeekableResStream(resUrl); // Deals with coordinates
+
+            // SamReader with input stream based on RES URL
+            SamReader reader = 
+                SamReaderFactory.make() 
+                  .validationStringency(ValidationStringency.LENIENT) 
+                  .samRecordFactory(DefaultSAMRecordFactory.getInstance()) 
+                  .open(SamInputResource.of(cIn)); 
+            SAMFileHeader fileHeader = reader.getFileHeader();
+            int iIndex = fileHeader.getSequenceIndex(reference);
+
+            // Handle Request here - query Reader according to parameters
+            int iStart = (int)(start);
+            int iEnd = (int)(end);
+            QueryInterval[] qis = {new QueryInterval(iIndex, iStart, iEnd)};
+            SAMRecordIterator query = reader.query(qis, true);
+
+            // Open return output stream - instatiate a SamFileWriter
+            OutputStream out = null;
+            SAMFileWriterFactory writerFactory = new SAMFileWriterFactory();
+            try {
+                out = response.getOutputStream(); 
+                // Return a list of URLs to get individual components of the request
+                try (SAMFileWriter writer = writerFactory.makeBAMWriter(fileHeader, true, out)) {
+                    // Return a list of URLs to get individual components of the request
+                    Stream<SAMRecord> stream = query.stream();
+                    Iterator<SAMRecord> iterator = stream.iterator();
+                    while (iterator.hasNext()) {
+                        SAMRecord next = iterator.next();
+                        writer.addAlignment(next);
+                    }
+                }
+                
+            } catch (Throwable t) { // Log Error!
+                EventEntry eev = getEventEntry(t, "TODO ClientIp", "Direct GA4GH Download", auth.getName());
+                downloaderLogService.logEvent(eev);
+
+                throw new GeneralStreamingException(t.toString(), 4);
+            } finally {
+                if (out != null) try {out.close();} catch (IOException ex) {;}
+            }
+        } else { // If no 404 was found, this is a permissions denied error
+            throw new PermissionDeniedException(accession);
+        }
     }
     
     /*
@@ -364,7 +493,23 @@ public class RemoteFileServiceImpl implements FileService {
                     break;
                 }
             }
+        } else { // 404 File Not Found
+            throw new NotFoundException(file_id, "4");
         }
         return reqFile;
     }
+
+    @HystrixCommand
+    private String mapRunToFile(String runId) {
+        
+        // Can't access Runs yet... TODO
+        
+        return "";
+    }
+
+    @HystrixCommand
+    public String resUrl() {
+        InstanceInfo instance = discoveryClient.getNextServerFromEureka("RES", false);
+        return instance.getHomePageUrl();
+    }    
 }

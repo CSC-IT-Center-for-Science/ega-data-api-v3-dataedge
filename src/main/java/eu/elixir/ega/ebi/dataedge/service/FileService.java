@@ -39,4 +39,16 @@ public interface FileService {
                                 String destinationFormat,
                                 String destinationKey);
     
+    public void getById(Authentication auth, 
+                        String file_id,
+                        String accession,
+                        String format,
+                        String reference,
+                        long start,
+                        long end, 
+                        String destinationFormat,
+                        String destinationKey,
+                        HttpServletRequest request,
+                        HttpServletResponse response);
+    
 }
