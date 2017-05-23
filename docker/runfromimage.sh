@@ -1,2 +1,2 @@
 #!/bin/bash
-sudo docker run -d -p 8761:8761 alexandersenf/ega_eureka
+sudo docker run -d -p 9059:9059 alexandersenf/ega_dataedge
