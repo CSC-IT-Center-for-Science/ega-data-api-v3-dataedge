@@ -1,0 +1,23 @@
+# Use phusion/baseimage as base image.
+FROM phusion/baseimage:latest
+
+# Use baseimage-docker's init system.
+CMD ["/sbin/my_init"]
+
+# custon build instructions here...
+# Java: OpenJDK8
+RUN apt-get update
+RUN apt-get install -y software-properties-common python-software-properties
+RUN add-apt-repository ppa:openjdk-r/ppa
+RUN apt-get update
+RUN apt-get -y install openjdk-8-jdk
+ADD DataEdgeService-0.0.1-SNAPSHOT.war /DataEdgeService-0.0.1-SNAPSHOT.war
+RUN mkdir /etc/service/ega_v3_dataedge
+ADD dsedged.sh /etc/service/ega_v3_dataedge/run
+RUN chmod +x /etc/service/ega_v3_dataedge/run
+
+# Clean up APT when done.
+RUN apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+# Port
+EXPOSE 9059
