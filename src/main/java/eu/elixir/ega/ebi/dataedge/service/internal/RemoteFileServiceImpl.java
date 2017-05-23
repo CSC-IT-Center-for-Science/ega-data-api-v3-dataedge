@@ -20,6 +20,7 @@ import com.netflix.appinfo.InstanceInfo;
 import com.netflix.discovery.EurekaClient;
 import com.netflix.hystrix.contrib.javanica.annotation.HystrixCommand;
 import eu.elixir.ega.ebi.dataedge.config.GeneralStreamingException;
+import eu.elixir.ega.ebi.dataedge.config.InternalErrorException;
 import eu.elixir.ega.ebi.dataedge.config.NotFoundException;
 import eu.elixir.ega.ebi.dataedge.config.PermissionDeniedException;
 import eu.elixir.ega.ebi.dataedge.config.VerifyMessage;
@@ -51,11 +52,14 @@ import htsjdk.samtools.SamReaderFactory;
 import htsjdk.samtools.ValidationStringency;
 import htsjdk.samtools.seekablestream.SeekableStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.math.BigInteger;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.security.DigestInputStream;
 import java.security.DigestOutputStream;
 import java.security.MessageDigest;
@@ -286,17 +290,23 @@ public class RemoteFileServiceImpl implements FileService {
             
             // SeekableStream on top of RES (using Eureka to obtain RES Base URL)
             URL resUrl = null;
+            SamInputResource inputResource = null;
             try {
                 resUrl = new URL(resUrl() + "/file/archive/" + reqFile.getStableId()); // Just specify file ID
-            } catch (MalformedURLException ex) {;}
-            SeekableStream cIn = new EgaSeekableResStream(resUrl); // Deals with coordinates
+                SeekableStream cIn = new EgaSeekableResStream(resUrl); // Deals with coordinates
+                InputStream cIndexIn = Files.newInputStream(Paths.get(reqFile.getIndexName()));
+                SamInputResource of = SamInputResource.of(cIn);
+                inputResource = of.index(cIndexIn);
+            } catch (Exception ex) {
+                throw new InternalErrorException(ex.getMessage(), "9");
+            }
 
             // SamReader with input stream based on RES URL
             SamReader reader = 
                 SamReaderFactory.make() 
                   .validationStringency(ValidationStringency.LENIENT) 
                   .samRecordFactory(DefaultSAMRecordFactory.getInstance()) 
-                  .open(SamInputResource.of(cIn)); 
+                  .open(inputResource); 
             SAMFileHeader fileHeader = reader.getFileHeader();
             int iIndex = fileHeader.getSequenceIndex(reference);
 

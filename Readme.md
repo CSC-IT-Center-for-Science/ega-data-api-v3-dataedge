@@ -30,3 +30,24 @@ There is also some experimental functionality to return “semantic” file info
  - Write Tests
  - Develop GA4GH Functionality
 
+
+### Deploy
+
+The service can be deployed directly to a Docker container, using these instructions:
+
+`wget https://raw.github.com/elixir-europe/ega-data-api-v3-dataedge/master/docker/runfromsource.sh`  
+`wget https://raw.github.com/elixir-europe/ega-data-api-v3-dataedge/master/docker/build.sh`  
+`chmod +x runfromsource.sh`  
+`chmod +x build.sh`  
+`./runfromsource.sh`  
+
+These commands perform a series of actions:  
+	1. Pull a build environment from Docker Hub  
+	2. Run the 'build.sh' script inside of a transient build environment container.  
+	3. The source code is pulled from GitHub and built  
+	4. A Deploy Docker Image is built and the compiled service is added to the image  
+	5. The deploy image is started; the service is automatically started inside the container  
+
+The Docker image can also be obtained directly from Docker Hub:  
+
+`sudo docker run -d -p 9059:9059 alexandersenf/ega_dataedge`  or by running the `./runfromimage.sh` file.
