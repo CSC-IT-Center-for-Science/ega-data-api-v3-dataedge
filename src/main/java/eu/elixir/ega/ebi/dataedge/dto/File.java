@@ -29,11 +29,9 @@ import lombok.Setter;
 @Setter
 @Getter
 public class File {
-        private String datasetStableId;
-        private String packetStableId;
+        private String fileId;
+        private String datasetId;
         private String fileName;
-        private String indexName;
-        private long size;
-        private String stableId;
+        private long fileSize;
         private String status;    
 }

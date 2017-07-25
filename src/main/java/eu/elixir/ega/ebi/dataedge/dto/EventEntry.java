@@ -37,7 +37,7 @@ public class EventEntry implements Serializable {
     private String event;
     private String downloadTicket;
     private String eventType;
-    private String userEmail;
+    private String email;
     private Timestamp created;
     
     @Override
@@ -47,7 +47,7 @@ public class EventEntry implements Serializable {
                    ", event=" + event +
                    ", downloadTicket=" + downloadTicket +
                    ", eventType=" + eventType +
-                   ", userEmail=" + userEmail +
+                   ", email=" + email +
                    ", created=" + created + "]";
     }    
 }

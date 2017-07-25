@@ -35,8 +35,8 @@ public class DownloadEntry implements Serializable {
     private Long downloadLogId;
     private String clientIp;
     private String server;
-    private String userEmail;
-    private String fileStableId;
+    private String email;
+    private String fileId;
     private double downloadSpeed;
     private String downloadStatus;
     private String downloadProtocol;
@@ -48,8 +48,8 @@ public class DownloadEntry implements Serializable {
             return "DownloadEntry [downloadLogId=" + downloadLogId + 
                    ", clientIp=" + clientIp +
                    ", server=" + server +
-                   ", userEmail=" + userEmail +
-                   ", fileStableId=" + fileStableId +
+                   ", email=" + email +
+                   ", fileId=" + fileId +
                    ", downloadSpeed=" + downloadSpeed +
                    ", downloadStatus=" + downloadStatus +
                    ", downloadProtocol=" + downloadProtocol +

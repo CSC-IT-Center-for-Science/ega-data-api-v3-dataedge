@@ -24,6 +24,7 @@ import eu.elixir.ega.ebi.dataedge.domain.repository.TransferRepository;
 import eu.elixir.ega.ebi.dataedge.dto.DownloadEntry;
 import eu.elixir.ega.ebi.dataedge.dto.EventEntry;
 import eu.elixir.ega.ebi.dataedge.dto.File;
+import eu.elixir.ega.ebi.dataedge.dto.FileDataset;
 import eu.elixir.ega.ebi.dataedge.dto.HttpResult;
 import eu.elixir.ega.ebi.dataedge.dto.RequestTicket;
 import org.springframework.stereotype.Service;
@@ -96,7 +97,7 @@ public class RemoteDownloadServiceImpl implements DownloadService {
 
         // Finally - if the download was successful, delete the ticket!
         if (success) {
-            restTemplate.delete(SERVICE_URL + "/request/{user_email}/ticket/{ticket}", ticketObject.getUserEmail(), ticket);
+            restTemplate.delete(SERVICE_URL + "/request/{user_email}/ticket/{ticket}", ticketObject.getEmail(), ticket);
         }
     }
     
@@ -119,7 +120,7 @@ public class RemoteDownloadServiceImpl implements DownloadService {
             RequestTicket ticketObject = new RequestTicket(user_email,
                                                            "DIRECT",
                                                            "0",
-                                                           f.getStableId(),
+                                                           f.getFileId(),
                                                            key,
                                                            "aes128",
                                                            "N/A",
@@ -258,7 +259,7 @@ public class RemoteDownloadServiceImpl implements DownloadService {
     private URI getResUri(RequestTicket ticketObject) {
         String destFormat = ticketObject.getEncryptionType();
         destFormat = destFormat.equals("AES")?"aes128":destFormat; // default to 128-bit if not specified
-        String url = RES_URL + "/file/archive/" + ticketObject.getFileStableId();
+        String url = RES_URL + "/file/archive/" + ticketObject.getFileId();
         UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(url)
                 .queryParam("destinationFormat", destFormat)
                 .queryParam("destinationKey", ticketObject.getEncryptionKey())
@@ -280,9 +281,9 @@ public class RemoteDownloadServiceImpl implements DownloadService {
             dle.setDownloadLogId(0L);
             dle.setDownloadSpeed(speed);
             dle.setDownloadStatus(success?"success":"failed");
-            dle.setFileStableId(ticketObject.getFileStableId());
+            dle.setFileId(ticketObject.getFileId());
             dle.setClientIp(ticketObject.getClientIp());
-            dle.setUserEmail(ticketObject.getUserEmail());
+            dle.setEmail(ticketObject.getEmail());
             dle.setDownloadProtocol("http");
             dle.setServer("DATAEDGE");
             dle.setEncryptionType(ticketObject.getEncryptionType());
@@ -299,7 +300,7 @@ public class RemoteDownloadServiceImpl implements DownloadService {
             eev.setEvent(t.toString());
             eev.setDownloadTicket(ticketObject.getDownloadTicket());
             eev.setEventType("Error");
-            eev.setUserEmail(ticketObject.getUserEmail());
+            eev.setEmail(ticketObject.getEmail());
             eev.setCreated(new java.sql.Timestamp(Calendar.getInstance().getTime().getTime())); 
         
         return eev;
@@ -307,7 +308,9 @@ public class RemoteDownloadServiceImpl implements DownloadService {
 
     @HystrixCommand
     private File getReqFile(String file_id, Authentication auth) {
-        
+        ResponseEntity<FileDataset[]> forEntityDataset = restTemplate.getForEntity(SERVICE_URL + "/file/{file_id}/datasets", FileDataset[].class, file_id);
+        FileDataset[] bodyDataset = forEntityDataset.getBody();
+
         // Obtain all Authorised Datasets
         HashSet<String> permissions = new HashSet<>();
         Collection<? extends GrantedAuthority> authorities = auth.getAuthorities();
@@ -317,18 +320,20 @@ public class RemoteDownloadServiceImpl implements DownloadService {
             permissions.add(next.getAuthority());
         }
         
-        File reqFile = null;
+        // Is this File in at least one Authoised Dataset?
         ResponseEntity<File[]> forEntity = restTemplate.getForEntity(SERVICE_URL + "/file/{file_id}", File[].class, file_id);
         File[] body = forEntity.getBody();
-        if (body!=null) {
-            for (File f:body) {
-                String dataset_id = f.getDatasetStableId();
-                if (permissions.contains(dataset_id)) {
-                    reqFile = f;
-                    break;
+        if (body!=null && bodyDataset!=null) {
+            for (FileDataset f:bodyDataset) {
+                String dataset_id = f.getDatasetId();
+                if (permissions.contains(dataset_id) && body.length>=1) {
+                    File ff = body[0];
+                    ff.setDatasetId(dataset_id);
+                    return ff;
                 }
             }
         }
-        return reqFile;
+        
+        return (new File());
     }
 }

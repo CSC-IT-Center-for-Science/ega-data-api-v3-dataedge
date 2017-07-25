@@ -31,10 +31,10 @@ import lombok.Setter;
 @Getter
 public class RequestTicket {
     
-        private String userEmail;
+        private String email;
         private String downloadTicket;
         private String clientIp;
-        private String fileStableId;
+        private String fileId;
         private String encryptionKey;
         private String encryptionType;
         private String ticketStatus;
@@ -44,6 +44,6 @@ public class RequestTicket {
         private long endCoordinate;
         
         public String toString() {
-            return userEmail+":"+downloadTicket+":"+clientIp+":"+fileStableId+":"+encryptionKey+":"+encryptionType+":"+ticketStatus+":"+label+":"+startCoordinate+":"+endCoordinate;
+            return email+":"+downloadTicket+":"+clientIp+":"+fileId+":"+encryptionKey+":"+encryptionType+":"+ticketStatus+":"+label+":"+startCoordinate+":"+endCoordinate;
         }
 }
