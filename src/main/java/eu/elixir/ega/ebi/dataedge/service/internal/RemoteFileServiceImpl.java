@@ -29,6 +29,7 @@ import eu.elixir.ega.ebi.dataedge.domain.repository.TransferRepository;
 import eu.elixir.ega.ebi.dataedge.dto.DownloadEntry;
 import eu.elixir.ega.ebi.dataedge.dto.EventEntry;
 import eu.elixir.ega.ebi.dataedge.dto.File;
+import eu.elixir.ega.ebi.dataedge.dto.FileDataset;
 import eu.elixir.ega.ebi.dataedge.dto.HttpResult;
 import eu.elixir.ega.ebi.dataedge.service.DownloaderLogService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -58,8 +59,6 @@ import java.math.BigInteger;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URL;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.security.DigestInputStream;
 import java.security.DigestOutputStream;
 import java.security.MessageDigest;
@@ -243,7 +242,7 @@ public class RemoteFileServiceImpl implements FileService {
             // SeekableStream on top of RES (using Eureka to obtain RES Base URL)
             URL resUrl = null;
             try {
-                resUrl = new URL(resUrl() + "/file/archive/" + reqFile.getStableId()); // Just specify file ID
+                resUrl = new URL(resUrl() + "/file/archive/" + reqFile.getFileId()); // Just specify file ID
                 
                 SeekableStream cIn = new EgaSeekableResStream(resUrl); // Deals with coordinates
 
@@ -292,9 +291,9 @@ public class RemoteFileServiceImpl implements FileService {
             URL resUrl = null;
             SamInputResource inputResource = null;
             try {
-                resUrl = new URL(resUrl() + "/file/archive/" + reqFile.getStableId()); // Just specify file ID
+                resUrl = new URL(resUrl() + "/file/archive/" + reqFile.getFileId()); // Just specify file ID
                 SeekableStream cIn = new EgaSeekableResStream(resUrl); // Deals with coordinates
-                InputStream cIndexIn = Files.newInputStream(Paths.get(reqFile.getIndexName()));
+                InputStream cIndexIn = null;
                 SamInputResource of = SamInputResource.of(cIn);
                 inputResource = of.index(cIndexIn);
             } catch (Exception ex) {
@@ -428,17 +427,17 @@ public class RemoteFileServiceImpl implements FileService {
     }
     
     @HystrixCommand
-    private DownloadEntry getDownloadEntry(boolean success, double speed, String fileStableId,
+    private DownloadEntry getDownloadEntry(boolean success, double speed, String fileId,
                                                                           String clientIp,
-                                                                          String user_email,
+                                                                          String email,
                                                                           String encryptionType) {
         DownloadEntry dle = new DownloadEntry();
             dle.setDownloadLogId(0L);
             dle.setDownloadSpeed(speed);
             dle.setDownloadStatus(success?"success":"failed");
-            dle.setFileStableId(fileStableId);
+            dle.setFileId(fileId);
             dle.setClientIp(clientIp);
-            dle.setUserEmail(user_email);
+            dle.setEmail(email);
             dle.setDownloadProtocol("http");
             dle.setServer("DATAEDGE");
             dle.setEncryptionType(encryptionType);
@@ -450,14 +449,14 @@ public class RemoteFileServiceImpl implements FileService {
     @HystrixCommand
     private EventEntry getEventEntry(Throwable t, String clientIp,
                                                   String ticket,
-                                                  String user_email) {
+                                                  String email) {
         EventEntry eev = new EventEntry();
             eev.setEventId("0");
             eev.setClientIp(clientIp);
             eev.setEvent(t.toString());
             eev.setDownloadTicket(ticket);
             eev.setEventType("Error");
-            eev.setUserEmail(user_email);
+            eev.setEmail(email);
             eev.setCreated(new java.sql.Timestamp(Calendar.getInstance().getTime().getTime())); 
         
         return eev;
@@ -492,14 +491,18 @@ public class RemoteFileServiceImpl implements FileService {
             } catch (Exception ex) {}
         }
         
+        ResponseEntity<FileDataset[]> forEntityDataset = restTemplate.getForEntity(SERVICE_URL + "/file/{file_id}/datasets", FileDataset[].class, file_id);
+        FileDataset[] bodyDataset = forEntityDataset.getBody();        
+        
         File reqFile = null;
         ResponseEntity<File[]> forEntity = restTemplate.getForEntity(SERVICE_URL + "/file/{file_id}", File[].class, file_id);
         File[] body = forEntity.getBody();
-        if (body!=null) {
-            for (File f:body) {
-                String dataset_id = f.getDatasetStableId();
-                if (permissions.contains(dataset_id)) {
-                    reqFile = f;
+        if (body!=null && bodyDataset!=null) {
+            for (FileDataset f:bodyDataset) {
+                String dataset_id = f.getDatasetId();
+                if (permissions.contains(dataset_id) && body.length>=1) {
+                    reqFile = body[0];
+                    reqFile.setDatasetId(dataset_id);
                     break;
                 }
             }

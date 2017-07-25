@@ -13,16 +13,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package eu.elixir.ega.ebi.dataedge.service;
+package eu.elixir.ega.ebi.dataedge.dto;
 
-import htsjdk.samtools.SAMFileHeader;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 /**
  *
  * @author asenf
  */
-public interface DemoGA4GHService {
-    
-    public SAMFileHeader getHeader(String fileId);
-    
+@NoArgsConstructor
+@AllArgsConstructor
+@Setter
+@Getter
+public class FileDataset {
+        private String fileId;
+        private String datasetId;
 }
