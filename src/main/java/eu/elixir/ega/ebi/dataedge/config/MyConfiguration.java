@@ -15,6 +15,9 @@
  */
 package eu.elixir.ega.ebi.dataedge.config;
 
+import org.springframework.cache.CacheManager;
+import org.springframework.cache.annotation.EnableCaching;
+import org.springframework.cache.concurrent.ConcurrentMapCacheManager;
 import org.springframework.cloud.client.loadbalancer.LoadBalanced;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -29,6 +32,7 @@ import springfox.documentation.spring.web.plugins.Docket;
  * @author asenf
  */
 @Configuration
+@EnableCaching
 public class MyConfiguration { 
 
     // Ribbon Load Balanced Rest Template for communication with other Microservices
@@ -48,5 +52,10 @@ public class MyConfiguration {
                 .paths(PathSelectors.any())
                 .build()
                 .pathMapping("/");
+    }    
+
+    @Bean
+    public CacheManager cacheManager() {
+        return new ConcurrentMapCacheManager("tokens");
     }    
 }
