@@ -21,6 +21,7 @@ import org.springframework.cache.concurrent.ConcurrentMapCacheManager;
 import org.springframework.cloud.client.loadbalancer.LoadBalanced;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.web.client.AsyncRestTemplate;
 import org.springframework.web.client.RestTemplate;
 import springfox.documentation.builders.PathSelectors;
 import springfox.documentation.builders.RequestHandlerSelectors;
@@ -43,6 +44,11 @@ public class MyConfiguration {
         return new RestTemplate();
     }
     
+    @Bean
+    @LoadBalanced
+    AsyncRestTemplate asyncRestTemplate() {
+        return new AsyncRestTemplate();
+    }
 
     @Bean
     public Docket swaggerSettings() {
