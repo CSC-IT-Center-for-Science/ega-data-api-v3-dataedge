@@ -15,17 +15,29 @@
  */
 package eu.elixir.ega.ebi.dataedge.service.internal;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.netflix.hystrix.contrib.javanica.annotation.HystrixCommand;
 import eu.elixir.ega.ebi.dataedge.dto.DownloadEntry;
 import eu.elixir.ega.ebi.dataedge.dto.EventEntry;
 import eu.elixir.ega.ebi.dataedge.service.DownloaderLogService;
+import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
+import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.util.concurrent.ListenableFuture;
+import org.springframework.util.concurrent.ListenableFutureCallback;
+import org.springframework.web.client.AsyncRestTemplate;
 
 /**
  *
@@ -39,7 +51,7 @@ public class RemoteDownloaderLogServiceImpl implements DownloaderLogService {
     private final String SERVICE_URL = "http://DOWNLOADER";
     
     @Autowired
-    RestTemplate restTemplate;    
+    AsyncRestTemplate restTemplate;    
 
     @Override
     @HystrixCommand
@@ -47,8 +59,35 @@ public class RemoteDownloaderLogServiceImpl implements DownloaderLogService {
                 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
+ 
+        // Jackson ObjectMapper to convert requestBody to JSON
+        String json = null;
+        URI url = null;
+        try {
+            json = new ObjectMapper().writeValueAsString(downloadEntry);
+            url = new URI(SERVICE_URL + "/log/download/");
+        } catch (JsonProcessingException | URISyntaxException ex) {}
         
-        restTemplate.postForObject(SERVICE_URL + "/log/download/", downloadEntry, Void.class);
+        HttpEntity<String> entity = new HttpEntity<>(json, headers);
+        //HttpEntity entity = new HttpEntity("parameters", headers);
+        
+        ListenableFuture<ResponseEntity<String>> futureEntity;
+        futureEntity = restTemplate.postForEntity(url, entity, String.class);
+
+        futureEntity
+                .addCallback(new ListenableFutureCallback<ResponseEntity>() {
+                    @Override
+                    public void onSuccess(ResponseEntity result) {
+                        System.out.println(result.getBody());
+                    }
+
+                    @Override
+                    public void onFailure(Throwable t) {
+                    }
+                });
+        
+        // Old Synchronous Call
+        //restTemplate.postForObject(SERVICE_URL + "/log/download/", downloadEntry, Void.class);
       
     }
 
@@ -59,7 +98,34 @@ public class RemoteDownloaderLogServiceImpl implements DownloaderLogService {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         
-        restTemplate.postForObject(SERVICE_URL + "/log/event/", eventEntry, Void.class);
+        // Jackson ObjectMapper to convert requestBody to JSON
+        String json = null;
+        URI url = null;
+        try {
+            json = new ObjectMapper().writeValueAsString(eventEntry);
+            url = new URI(SERVICE_URL + "/log/download/");
+        } catch (JsonProcessingException | URISyntaxException ex) {}
+        
+        HttpEntity<String> entity = new HttpEntity<>(json, headers);
+        //HttpEntity entity = new HttpEntity("parameters", headers);
+        
+        ListenableFuture<ResponseEntity<String>> futureEntity;
+        futureEntity = restTemplate.postForEntity(url, entity, String.class);
+
+        futureEntity
+                .addCallback(new ListenableFutureCallback<ResponseEntity>() {
+                    @Override
+                    public void onSuccess(ResponseEntity result) {
+                        System.out.println(result.getBody());
+                    }
+
+                    @Override
+                    public void onFailure(Throwable t) {
+                    }
+                });
+        
+        // Old Synchronous Call
+        //restTemplate.postForObject(SERVICE_URL + "/log/event/", eventEntry, Void.class);
         
     }
     
