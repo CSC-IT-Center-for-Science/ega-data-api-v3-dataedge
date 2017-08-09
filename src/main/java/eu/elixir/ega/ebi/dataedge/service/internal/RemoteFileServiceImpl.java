@@ -74,6 +74,7 @@ import java.util.logging.Logger;
 import java.util.stream.Stream;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
@@ -463,6 +464,7 @@ public class RemoteFileServiceImpl implements FileService {
     }
     
     @HystrixCommand
+    @Cacheable(cacheNames="reqFile")
     private File getReqFile(String file_id, Authentication auth, HttpServletRequest request) {
 
         // Obtain all Authorised Datasets (Provided by EGA AAI)

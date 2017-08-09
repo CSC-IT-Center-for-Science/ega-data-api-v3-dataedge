@@ -15,6 +15,7 @@
  */
 package eu.elixir.ega.ebi.dataedge.config;
 
+import java.util.Arrays;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.cache.concurrent.ConcurrentMapCacheManager;
@@ -60,8 +61,17 @@ public class MyConfiguration {
                 .pathMapping("/");
     }    
 
+    //@Bean
+    //public CacheManager cacheManager() {
+    //    return new ConcurrentMapCacheManager("tokens");
+    //}    
+
     @Bean
-    public CacheManager cacheManager() {
-        return new ConcurrentMapCacheManager("tokens");
-    }    
+    public CacheManager concurrentCacheManager() {
+
+            ConcurrentMapCacheManager manager = new ConcurrentMapCacheManager();
+            manager.setCacheNames(Arrays.asList("tokens", "reqFile"));
+
+            return manager;
+    }
 }

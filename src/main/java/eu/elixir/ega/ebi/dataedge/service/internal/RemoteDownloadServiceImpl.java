@@ -49,6 +49,7 @@ import java.util.List;
 import java.util.UUID;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -307,6 +308,7 @@ public class RemoteDownloadServiceImpl implements DownloadService {
     }
 
     @HystrixCommand
+    @Cacheable(cacheNames="reqFile")
     private File getReqFile(String file_id, Authentication auth) {
         ResponseEntity<FileDataset[]> forEntityDataset = restTemplate.getForEntity(SERVICE_URL + "/file/{file_id}/datasets", FileDataset[].class, file_id);
         FileDataset[] bodyDataset = forEntityDataset.getBody();

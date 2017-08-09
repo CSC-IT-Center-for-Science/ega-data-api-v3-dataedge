@@ -89,7 +89,6 @@ public class OAuth2ResourceConfig extends ResourceServerConfigurerAdapter {
 	
         @Primary
 	@Bean
-        @Lazy
 	public RemoteTokenServices remoteTokenServices(final @Value("${auth.server.url}") String checkTokenUrl,
 			final @Value("${auth.server.clientId}") String clientId,
 			final @Value("${auth.server.clientsecret}") String clientSecret) {
@@ -103,7 +102,6 @@ public class OAuth2ResourceConfig extends ResourceServerConfigurerAdapter {
 	}
         
 	@Bean
-        @Lazy
 	public RemoteTokenServices remoteZuulTokenServices(final @Value("${auth.zuul.server.url}") String checkTokenUrl,
 			final @Value("${auth.zuul.server.clientId}") String clientId,
 			final @Value("${auth.zuul.server.clientsecret}") String clientSecret) {

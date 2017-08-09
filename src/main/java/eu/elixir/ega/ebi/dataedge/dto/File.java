@@ -33,5 +33,7 @@ public class File {
         private String datasetId;
         private String fileName;
         private long fileSize;
+        private String checksum;
+        private String checksumType;
         private String status;    
 }
