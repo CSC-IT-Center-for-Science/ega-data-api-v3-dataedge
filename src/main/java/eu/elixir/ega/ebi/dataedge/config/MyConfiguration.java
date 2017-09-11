@@ -15,7 +15,9 @@
  */
 package eu.elixir.ega.ebi.dataedge.config;
 
+import eu.elixir.ega.ebi.dataedge.dto.MyExternalConfig;
 import java.util.Arrays;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.cache.concurrent.ConcurrentMapCacheManager;
@@ -36,6 +38,8 @@ import springfox.documentation.spring.web.plugins.Docket;
 @Configuration
 @EnableCaching
 public class MyConfiguration { 
+    @Value("${ega.ega.external.url}") String externalUrl;
+    @Value("${ega.ega.cram.fasta}") String cramFastaReference;
 
     // Ribbon Load Balanced Rest Template for communication with other Microservices
     
@@ -70,8 +74,13 @@ public class MyConfiguration {
     public CacheManager concurrentCacheManager() {
 
             ConcurrentMapCacheManager manager = new ConcurrentMapCacheManager();
-            manager.setCacheNames(Arrays.asList("tokens", "reqFile"));
+            manager.setCacheNames(Arrays.asList("tokens", "reqFile", "index", "headerFile", "fileSize"));
 
             return manager;
+    }
+    
+    @Bean
+    public MyExternalConfig MyArchiveConfig() {
+        return new MyExternalConfig(externalUrl, cramFastaReference);
     }
 }

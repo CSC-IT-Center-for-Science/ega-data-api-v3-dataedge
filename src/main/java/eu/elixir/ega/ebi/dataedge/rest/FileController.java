@@ -25,9 +25,12 @@ import org.springframework.web.bind.annotation.RestController;
 import eu.elixir.ega.ebi.dataedge.service.FileService;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.bind.annotation.RequestMethod;
 import static org.springframework.web.bind.annotation.RequestMethod.GET;
+import static org.springframework.web.bind.annotation.RequestMethod.HEAD;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 
@@ -78,14 +81,15 @@ public class FileController {
     }
     
     // {id} -- 'file', 'sample', 'run', ...
-    @RequestMapping(value = "/byid/{id}", method = GET)
+    @RequestMapping(value = "/byid/{type}", method = GET)
     @ResponseBody
-    public void getById(@PathVariable String idType,
+    public void getById(@PathVariable String type,
                         @RequestParam(value = "accession", required = true) String accession,
                         @RequestParam(value = "format", required = false, defaultValue = "bam") String format,
                         @RequestParam(value = "chr", required = false, defaultValue = "") String reference,
                         @RequestParam(value = "start", required = false, defaultValue = "0") long start,
                         @RequestParam(value = "end", required = false, defaultValue = "0") long end, 
+                        @RequestParam(value = "header", required = false, defaultValue = "true") Boolean header, 
                         @RequestParam(value = "destinationFormat", required = false, defaultValue="aes128") String destinationFormat,
                         @RequestParam(value = "destinationKey", required = false, defaultValue = "") String destinationKey,
                         HttpServletRequest request,
@@ -94,31 +98,33 @@ public class FileController {
         if (auth==null) {
             throw new InvalidAuthenticationException(accession);
         }
-            
-        // Basic Parameter Validation
-        validateFormat(format);
         
         fileService.getById(auth,
-                            idType, 
+                            type, 
                             accession, 
                             format, 
                             reference,
                             start, 
                             end, 
+                            header,
                             destinationFormat,
                             destinationKey,
                             request, 
                             response);
     }
 
-    // Ensure BAM/CRAM & General Parameters
-    private void validateFormat(String format) {
-        if  (!((format.equalsIgnoreCase("bam") || format.equalsIgnoreCase("cram")))) {
-            throw new UnsupportedFormatException(format);            
+    @RequestMapping(value = "/byid/{type}", method = HEAD)
+    @ResponseBody
+    public ResponseEntity getHeadById(@PathVariable String type,
+                        @RequestParam(value = "accession", required = true) String accession,
+                        HttpServletRequest request,
+                        HttpServletResponse response) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth==null) {
+            throw new InvalidAuthenticationException(accession);
         }
         
-        // TODO ... Other Validations according to API Specs
+        return fileService.getHeadById(auth, type, accession, request, response);
     }
-    
     
 }

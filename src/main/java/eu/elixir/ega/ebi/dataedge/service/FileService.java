@@ -17,6 +17,7 @@ package eu.elixir.ega.ebi.dataedge.service;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 
 /**
@@ -46,9 +47,15 @@ public interface FileService {
                         String reference,
                         long start,
                         long end, 
+                        boolean header,
                         String destinationFormat,
                         String destinationKey,
                         HttpServletRequest request,
                         HttpServletResponse response);
     
+    public ResponseEntity getHeadById(Authentication auth, 
+                            String file_id,
+                            String accession,
+                            HttpServletRequest request,
+                            HttpServletResponse response);
 }

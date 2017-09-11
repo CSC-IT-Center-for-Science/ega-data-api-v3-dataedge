@@ -30,7 +30,9 @@ import eu.elixir.ega.ebi.dataedge.dto.DownloadEntry;
 import eu.elixir.ega.ebi.dataedge.dto.EventEntry;
 import eu.elixir.ega.ebi.dataedge.dto.File;
 import eu.elixir.ega.ebi.dataedge.dto.FileDataset;
+import eu.elixir.ega.ebi.dataedge.dto.FileIndexFile;
 import eu.elixir.ega.ebi.dataedge.dto.HttpResult;
+import eu.elixir.ega.ebi.dataedge.dto.MyExternalConfig;
 import eu.elixir.ega.ebi.dataedge.service.DownloaderLogService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
@@ -39,7 +41,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 import eu.elixir.ega.ebi.dataedge.service.FileService;
+import eu.elixir.ega.ebi.egacipher.EgaSeekableCachedResStream;
 import eu.elixir.ega.ebi.egacipher.EgaSeekableResStream;
+import htsjdk.samtools.CRAMFileWriter;
 import htsjdk.samtools.DefaultSAMRecordFactory;
 import htsjdk.samtools.QueryInterval;
 import htsjdk.samtools.SAMFileHeader;
@@ -50,10 +54,13 @@ import htsjdk.samtools.SAMRecordIterator;
 import htsjdk.samtools.SamInputResource;
 import htsjdk.samtools.SamReader;
 import htsjdk.samtools.SamReaderFactory;
+import htsjdk.samtools.SamReaderFactory.Option;
 import htsjdk.samtools.ValidationStringency;
+import htsjdk.samtools.cram.ref.CRAMReferenceSource;
+import htsjdk.samtools.cram.ref.ReferenceSource;
+import htsjdk.samtools.seekablestream.SeekableBufferedStream;
 import htsjdk.samtools.seekablestream.SeekableStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.math.BigInteger;
 import java.net.MalformedURLException;
@@ -76,6 +83,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -110,6 +118,9 @@ public class RemoteFileServiceImpl implements FileService {
     @Autowired
     private EurekaClient discoveryClient;
 
+    @Autowired
+    MyExternalConfig externalConfig;
+    
     @Override
     @HystrixCommand
     public void getFile(Authentication auth, 
@@ -228,6 +239,7 @@ public class RemoteFileServiceImpl implements FileService {
     
     @Override
     @HystrixCommand
+    @Cacheable(cacheNames="headerFile")
     public Object getFileHeader(Authentication auth, 
                                 String file_id, 
                                 String destinationFormat, 
@@ -236,16 +248,13 @@ public class RemoteFileServiceImpl implements FileService {
         
         // Ascertain Access Permissions for specified File ID
         File reqFile = getReqFile(file_id, auth, null);
-        if (reqFile!=null) {            
-            // 'header' RES functionality; pull it out of RES into DataEdge for consistency
-            //header = restTemplate.getForObject(RES_URL + "/ga4gh/{fileId}/header", Object.class, reqFile.getStableId());
-            
-            // SeekableStream on top of RES (using Eureka to obtain RES Base URL)
+        if (reqFile!=null) {
             URL resUrl = null;
             try {
                 resUrl = new URL(resUrl() + "/file/archive/" + reqFile.getFileId()); // Just specify file ID
                 
                 SeekableStream cIn = new EgaSeekableResStream(resUrl); // Deals with coordinates
+                //SeekableStream cIn = new EgaSeekableCachedResStream(resUrl); // Deals with coordinates
 
                 // SamReader with input stream based on RES URL
                 SamReader reader = 
@@ -265,6 +274,56 @@ public class RemoteFileServiceImpl implements FileService {
         return header;
     }
 
+/*    
+    protected SAMFileHeader readHeader(final BinaryCodec stream, final ValidationStringency validationStringency, final String source)
+        throws IOException {
+
+        final byte[] buffer = new byte[4];
+        stream.readBytes(buffer);
+        if (!Arrays.equals(buffer, BAMFileConstants.BAM_MAGIC)) {
+            throw new IOException("Invalid BAM file header");
+        }
+
+        final int headerTextLength = stream.readInt();
+        final String textHeader = stream.readString(headerTextLength);
+        final SAMTextHeaderCodec headerCodec = new SAMTextHeaderCodec();
+        headerCodec.setValidationStringency(validationStringency);
+        final SAMFileHeader samFileHeader = headerCodec.decode(new StringLineReader(textHeader),
+                source);
+
+        final int sequenceCount = stream.readInt();
+        if (!samFileHeader.getSequenceDictionary().isEmpty()) {
+            // It is allowed to have binary sequences but no text sequences, so only validate if both are present
+            if (sequenceCount != samFileHeader.getSequenceDictionary().size()) {
+                throw new SAMFormatException("Number of sequences in text header (" +
+                        samFileHeader.getSequenceDictionary().size() +
+                        ") != number of sequences in binary header (" + sequenceCount + ") for file " + source);
+            }
+            for (int i = 0; i < sequenceCount; i++) {
+                final SAMSequenceRecord binarySequenceRecord = readSequenceRecord(stream, source);
+                final SAMSequenceRecord sequenceRecord = samFileHeader.getSequence(i);
+                if (!sequenceRecord.getSequenceName().equals(binarySequenceRecord.getSequenceName())) {
+                    throw new SAMFormatException("For sequence " + i + ", text and binary have different names in file " +
+                            source);
+                }
+                if (sequenceRecord.getSequenceLength() != binarySequenceRecord.getSequenceLength()) {
+                    throw new SAMFormatException("For sequence " + i + ", text and binary have different lengths in file " +
+                            source);
+                }
+            }
+        } else {
+            // If only binary sequences are present, copy them into samFileHeader
+            final List<SAMSequenceRecord> sequences = new ArrayList<SAMSequenceRecord>(sequenceCount);
+            for (int i = 0; i < sequenceCount; i++) {
+                sequences.add(readSequenceRecord(stream, source));
+            }
+            samFileHeader.setSequenceDictionary(new SAMSequenceDictionary(sequences));
+        }
+
+        return samFileHeader;
+    }
+*/    
+    
     @Override
     @HystrixCommand
     public void getById(Authentication auth, 
@@ -274,10 +333,14 @@ public class RemoteFileServiceImpl implements FileService {
                         String reference,
                         long start, 
                         long end, 
+                        boolean header,
                         String destinationFormat, 
                         String destinationKey, 
                         HttpServletRequest request, 
                         HttpServletResponse response) {
+        
+        // Adding a content header in the response: binary data
+        response.addHeader("Content-Type", MediaType.valueOf("application/octet-stream").toString());
         
         String file_id = "";
         if (idType.equalsIgnoreCase("file")) { // Currently only support File IDs
@@ -289,26 +352,58 @@ public class RemoteFileServiceImpl implements FileService {
         if (reqFile!=null) {
             
             // SeekableStream on top of RES (using Eureka to obtain RES Base URL)
-            URL resUrl = null;
             SamInputResource inputResource = null;
+            CRAMReferenceSource x = null;
+            SeekableBufferedStream bIn = null, 
+                                   bIndexIn = null;
             try {
-                resUrl = new URL(resUrl() + "/file/archive/" + reqFile.getFileId()); // Just specify file ID
-                SeekableStream cIn = new EgaSeekableResStream(resUrl); // Deals with coordinates
-                InputStream cIndexIn = null;
-                SamInputResource of = SamInputResource.of(cIn);
-                inputResource = of.index(cIndexIn);
+                String extension = "";
+                if (reqFile.getFileName().contains(".bam")) {
+                        extension = ".bam";
+                } else if (reqFile.getFileName().contains(".cram")) {
+                        extension = ".cram";
+                        x = new ReferenceSource(new java.io.File(externalConfig.getCramFastaReference()));
+                }
+                
+                // BAM/CRAM File
+                URL resUrl = new URL(resUrl() + "file/archive/" + reqFile.getFileId()); // Just specify file ID
+                //SeekableStream cIn = (new EgaSeekableResStream(resUrl, null, null, reqFile.getFileSize())).setExtension(extension); // Deals with coordinates
+                SeekableStream cIn = (new EgaSeekableCachedResStream(resUrl, null, null, reqFile.getFileSize())).setExtension(extension); // Deals with coordinates
+                bIn = new SeekableBufferedStream(cIn);
+                
+                // BAI/CRAI File
+                FileIndexFile fileIndexFile = getFileIndexFile(reqFile.getFileId());
+                File reqIndexFile = getReqFile(fileIndexFile.getIndexFileId(), auth, null);
+                URL indexUrl = new URL(resUrl() + "file/archive/" + fileIndexFile.getIndexFileId()); // Just specify index ID
+                //InputStream cIndexIn = new EgaSeekableResStream(indexUrl, null, null, reqIndexFile.getFileSize());
+                //InputStream myIndexIn = new BufferedInputStream(cIndexIn);
+                //SeekableStream cIndexIn = new EgaSeekableResStream(indexUrl, null, null, reqIndexFile.getFileSize());
+                SeekableStream cIndexIn = new EgaSeekableCachedResStream(indexUrl, null, null, reqIndexFile.getFileSize());
+                bIndexIn = new SeekableBufferedStream(cIndexIn);
+
+                inputResource = SamInputResource.of(bIn).index(cIndexIn);
             } catch (Exception ex) {
                 throw new InternalErrorException(ex.getMessage(), "9");
             }
 
-            // SamReader with input stream based on RES URL
-            SamReader reader = 
-                SamReaderFactory.make() 
-                  .validationStringency(ValidationStringency.LENIENT) 
-                  .samRecordFactory(DefaultSAMRecordFactory.getInstance()) 
-                  .open(inputResource); 
+            // SamReader with input stream based on RES URL (should work for BAM or CRAM)
+            SamReader reader = (x==null) ?
+                (SamReaderFactory.make()            // BAM FIle 
+                  .validationStringency(ValidationStringency.LENIENT)
+                  .enable(Option.CACHE_FILE_BASED_INDEXES)
+                  .samRecordFactory(DefaultSAMRecordFactory.getInstance())
+                  .open(inputResource)) :
+                (SamReaderFactory.make()            // CRAM File
+                  .referenceSource(x)
+                  .validationStringency(ValidationStringency.LENIENT)
+                  .enable(Option.CACHE_FILE_BASED_INDEXES)
+                  .samRecordFactory(DefaultSAMRecordFactory.getInstance())
+                  .open(inputResource)) ;                    
+            
             SAMFileHeader fileHeader = reader.getFileHeader();
+//System.out.println("HEADER :: " + fileHeader.getTextHeader());
             int iIndex = fileHeader.getSequenceIndex(reference);
+//System.out.println("REFERENCE :: " + reference + "     (" + iIndex + ")");
 
             // Handle Request here - query Reader according to parameters
             int iStart = (int)(start);
@@ -320,15 +415,27 @@ public class RemoteFileServiceImpl implements FileService {
             OutputStream out = null;
             SAMFileWriterFactory writerFactory = new SAMFileWriterFactory();
             try {
-                out = response.getOutputStream(); 
-                // Return a list of URLs to get individual components of the request
-                try (SAMFileWriter writer = writerFactory.makeBAMWriter(fileHeader, true, out)) {
-                    // Return a list of URLs to get individual components of the request
-                    Stream<SAMRecord> stream = query.stream();
-                    Iterator<SAMRecord> iterator = stream.iterator();
-                    while (iterator.hasNext()) {
-                        SAMRecord next = iterator.next();
-                        writer.addAlignment(next);
+                out = response.getOutputStream();
+                if (format.equalsIgnoreCase("BAM")) {
+                    try (SAMFileWriter writer = writerFactory.makeBAMWriter(fileHeader, true, out)) { // writes out header
+                        Stream<SAMRecord> stream = query.stream();
+                        Iterator<SAMRecord> iterator = stream.iterator();
+                        while (iterator.hasNext()) {
+                            SAMRecord next = iterator.next();
+                            writer.addAlignment(next);
+                        }
+                        writer.close();
+                    }
+                } else if (format.equalsIgnoreCase("CRAM")) { // Must specify Reference fasta file
+                    try (CRAMFileWriter writer = writerFactory
+                            .makeCRAMWriter(fileHeader, out, new java.io.File(externalConfig.getCramFastaReference()))) {
+                        Stream<SAMRecord> stream = query.stream();
+                        Iterator<SAMRecord> iterator = stream.iterator();
+                        while (iterator.hasNext()) {
+                            SAMRecord next = iterator.next();
+                            writer.addAlignment(next);
+                        }
+                        writer.close();
                     }
                 }
                 
@@ -527,4 +634,41 @@ public class RemoteFileServiceImpl implements FileService {
         InstanceInfo instance = discoveryClient.getNextServerFromEureka("RES", false);
         return instance.getHomePageUrl();
     }    
+
+    @HystrixCommand
+    @Cacheable(cacheNames="indexFile")
+    private FileIndexFile getFileIndexFile(String file_id) {
+        FileIndexFile indexFile = null;
+        ResponseEntity<FileIndexFile[]> forEntity = restTemplate.getForEntity(SERVICE_URL + "/file/{file_id}/index", FileIndexFile[].class, file_id);
+        FileIndexFile[] body = forEntity.getBody();
+        if (body!=null && body.length>=1) {
+            indexFile = body[0];
+        }
+        return indexFile;
+    }
+
+    @Override
+    @HystrixCommand
+    @Cacheable(cacheNames="fileSize")
+    public ResponseEntity getHeadById(Authentication auth, 
+                            String idType, 
+                            String accession, 
+                            HttpServletRequest request, 
+                            HttpServletResponse response) {
+        String file_id = "";
+        if (idType.equalsIgnoreCase("file")) { // Currently only support File IDs
+            file_id = accession;
+        }
+        
+        // Ascertain Access Permissions for specified File ID
+        File reqFile = getReqFile(file_id, auth, null);
+        if (reqFile!=null) {
+            response.addHeader("Content-Length", String.valueOf(reqFile.getFileSize()) );
+            return new ResponseEntity(HttpStatus.OK);
+        }
+        
+        return new ResponseEntity(HttpStatus.UNAUTHORIZED);
+    }
+
+    
 }
