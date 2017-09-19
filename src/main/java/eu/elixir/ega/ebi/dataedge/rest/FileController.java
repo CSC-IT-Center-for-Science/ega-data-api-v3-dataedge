@@ -16,7 +16,6 @@
 package eu.elixir.ega.ebi.dataedge.rest;
 
 import eu.elixir.ega.ebi.dataedge.config.InvalidAuthenticationException;
-import eu.elixir.ega.ebi.dataedge.config.UnsupportedFormatException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -28,7 +27,6 @@ import javax.servlet.http.HttpServletResponse;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.web.bind.annotation.RequestMethod;
 import static org.springframework.web.bind.annotation.RequestMethod.GET;
 import static org.springframework.web.bind.annotation.RequestMethod.HEAD;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -98,7 +96,6 @@ public class FileController {
         if (auth==null) {
             throw new InvalidAuthenticationException(accession);
         }
-        
         fileService.getById(auth,
                             type, 
                             accession, 

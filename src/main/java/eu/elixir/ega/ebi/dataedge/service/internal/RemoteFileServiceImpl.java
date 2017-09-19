@@ -615,6 +615,12 @@ public class RemoteFileServiceImpl implements FileService {
                     break;
                 }
             }
+            
+            // If there's no file size in the database, obtain it from RES
+            if (reqFile.getFileSize() == 0) {
+                ResponseEntity<Long> forSize = restTemplate.getForEntity(RES_URL + "/file/archive/{file_id}/size", Long.class, file_id);
+                reqFile.setFileSize(forSize.getBody());
+            }
         } else { // 404 File Not Found
             throw new NotFoundException(file_id, "4");
         }
