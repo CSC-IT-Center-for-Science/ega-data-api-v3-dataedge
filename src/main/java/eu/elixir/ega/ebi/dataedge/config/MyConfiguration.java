@@ -15,12 +15,16 @@
  */
 package eu.elixir.ega.ebi.dataedge.config;
 
+import com.google.common.cache.CacheBuilder;
 import eu.elixir.ega.ebi.dataedge.dto.MyExternalConfig;
 import java.util.Arrays;
+import java.util.concurrent.TimeUnit;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.cache.concurrent.ConcurrentMapCacheManager;
+import org.springframework.cache.guava.GuavaCache;
+import org.springframework.cache.support.SimpleCacheManager;
 import org.springframework.cloud.client.loadbalancer.LoadBalanced;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -70,13 +74,37 @@ public class MyConfiguration {
     //    return new ConcurrentMapCacheManager("tokens");
     //}    
 
+    //@Bean
+    //public CacheManager concurrentCacheManager() {
+    //
+    //        ConcurrentMapCacheManager manager = new ConcurrentMapCacheManager();
+    //        manager.setCacheNames(Arrays.asList("tokens", "reqFile", "index", "headerFile", "fileSize"));
+    //
+    //        return manager;
+    //}
+
     @Bean
-    public CacheManager concurrentCacheManager() {
-
-            ConcurrentMapCacheManager manager = new ConcurrentMapCacheManager();
-            manager.setCacheNames(Arrays.asList("tokens", "reqFile", "index", "headerFile", "fileSize"));
-
-            return manager;
+    public CacheManager cacheManager() {
+        SimpleCacheManager simpleCacheManager = new SimpleCacheManager();
+        GuavaCache tokens = new GuavaCache("tokens", CacheBuilder.newBuilder()
+                .expireAfterAccess(1, TimeUnit.HOURS)
+                .build());
+        GuavaCache reqFile = new GuavaCache("reqFile", CacheBuilder.newBuilder()
+                .expireAfterAccess(24, TimeUnit.HOURS)
+                .build());
+        GuavaCache index = new GuavaCache("index", CacheBuilder.newBuilder()
+                .expireAfterAccess(24, TimeUnit.HOURS)
+                .build());
+        GuavaCache headerFile = new GuavaCache("headerFile", CacheBuilder.newBuilder()
+                .expireAfterAccess(24, TimeUnit.HOURS)
+                .build());
+        GuavaCache fileSize = new GuavaCache("fileSize", CacheBuilder.newBuilder()
+                .expireAfterAccess(24, TimeUnit.HOURS)
+                .build());
+        
+        simpleCacheManager.setCaches(Arrays.asList(tokens, reqFile, index, 
+                    headerFile, fileSize));
+        return simpleCacheManager;
     }
     
     @Bean
