@@ -121,20 +121,24 @@ public class RemoteTicketServiceImpl implements TicketService {
 //            urls.add(new HtsgetUrl("header", authHeader));
             
             // Data URL(s)
-            String url = externalConfig.getEgaExternalUrl() + "byid/file?accession=" + file_id + 
-                                                              "&format=" + format + 
-                                                              "&start=" + start + 
-                                                              "&end=" + end + 
-                                                              "&chr=" + referenceName;
+            String url = externalConfig.getEgaExternalUrl() + "byid/file?accession=" + file_id;
+            if (format!=null && format.length() > 0)
+                url += "&format=" + format;
+            if (start!=null && start.length() > 0)
+                url += "&start=" + start;
+            if (end!=null && end.length() > 0)
+                url += "&end=" + end;
+            if (referenceName!=null && referenceName.length() > 0)
+                url += "&chr=";
             urls.add(new HtsgetUrl(url, authHeader));
 
             return ResponseEntity.status(HttpStatus.OK)
-                                 .contentType(MediaType.valueOf("application/vnd.ga4gh.htsget.v0.2rc+json; charset=utf-8"))
+                                 .contentType(MediaType.valueOf("application/vnd.ga4gh.htsget.v0.2+json; charset=utf-8"))
                                  .body(new HtsgetContainer(new HtsgetResponse(format.toUpperCase(), urls.toArray(new HtsgetUrl[urls.size()]))));
         }
         
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                             .contentType(MediaType.valueOf("application/vnd.ga4gh.htsget.v0.2rc+json; charset=utf-8"))
+                             .contentType(MediaType.valueOf("application/vnd.ga4gh.htsget.v0.2+json; charset=utf-8"))
                              .body(new HtsgetContainer(new HtsgetErrorResponse("UnAuthorized", "No authorization for accession '" + file_id + "'")));
     }
 
