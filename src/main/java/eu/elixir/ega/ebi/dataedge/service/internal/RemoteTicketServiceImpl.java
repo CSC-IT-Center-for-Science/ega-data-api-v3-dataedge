@@ -34,7 +34,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import eu.elixir.ega.ebi.dataedge.service.TicketService;
 import eu.elixir.ega.ebi.egacipher.EgaSeekableCachedResStream;
-import eu.elixir.ega.ebi.egacipher.EgaSeekableResStream;
 import htsjdk.samtools.BAMFileSpan;
 import htsjdk.samtools.BAMIndex;
 import htsjdk.samtools.Chunk;
@@ -107,8 +106,16 @@ public class RemoteTicketServiceImpl implements TicketService {
             reqFile = getReqFile(file_id, auth, request); // request added for ELIXIR
         } catch (NotFoundException ex) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                                 .contentType(MediaType.valueOf("application/vnd.ga4gh.htsget.v0.2rc+json; charset=utf-8"))
+                                 .contentType(MediaType.valueOf("application/vnd.ga4gh.htsget.v0.2+json; charset=utf-8"))
                                  .body(new HtsgetContainer(new HtsgetErrorResponse("NotFound", "No such accession '" + file_id + "'")));
+        }
+        
+        boolean reference = false;
+        reference = ( referenceIndex>-1 || (referenceName!=null && referenceName.length()>0) || (referenceMD5!=null && referenceMD5.length()>0) );
+        if ( !reference && ( (start!=null && start.length() > 0) || (end!=null && end.length() > 0) ) ) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                                 .contentType(MediaType.valueOf("application/vnd.ga4gh.htsget.v0.2+json; charset=utf-8"))
+                                 .body(new HtsgetContainer(new HtsgetErrorResponse("InvalidInput", "range specified without reference")));
         }
         
         if (reqFile!=null) {
@@ -129,7 +136,7 @@ public class RemoteTicketServiceImpl implements TicketService {
             if (end!=null && end.length() > 0)
                 url += "&end=" + end;
             if (referenceName!=null && referenceName.length() > 0)
-                url += "&chr=";
+                url += "&chr=" + referenceName;
             urls.add(new HtsgetUrl(url, authHeader));
 
             return ResponseEntity.status(HttpStatus.OK)
@@ -161,7 +168,7 @@ public class RemoteTicketServiceImpl implements TicketService {
             try {
                 List<String> permissions_ = (new VerifyMessage(request.getHeader("X-Permissions"))).getPermissions();
                 if (permissions_ != null && permissions_.size() > 0) {
-                    for (String ds:permissions) {
+                    for (String ds:permissions_) {
                         if (ds != null) {
                             permissions.add(ds);
                         }

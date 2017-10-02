@@ -51,6 +51,7 @@ import htsjdk.samtools.SAMFileWriter;
 import htsjdk.samtools.SAMFileWriterFactory;
 import htsjdk.samtools.SAMRecord;
 import htsjdk.samtools.SAMRecordIterator;
+import htsjdk.samtools.SAMSequenceRecord;
 import htsjdk.samtools.SamInputResource;
 import htsjdk.samtools.SamReader;
 import htsjdk.samtools.SamReaderFactory;
@@ -69,6 +70,7 @@ import java.net.URL;
 import java.security.DigestInputStream;
 import java.security.DigestOutputStream;
 import java.security.MessageDigest;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collection;
@@ -348,7 +350,7 @@ public class RemoteFileServiceImpl implements FileService {
         }
         
         // Ascertain Access Permissions for specified File ID
-        File reqFile = getReqFile(file_id, auth, null);
+        File reqFile = getReqFile(file_id, auth, request);
         if (reqFile!=null) {
             
             // SeekableStream on top of RES (using Eureka to obtain RES Base URL)
@@ -408,13 +410,20 @@ public class RemoteFileServiceImpl implements FileService {
             // Handle Request here - query Reader according to parameters
             int iStart = (int)(start);
             int iEnd = (int)(end);
-            QueryInterval[] qis = {new QueryInterval(iIndex, iStart, iEnd)};
-            SAMRecordIterator query = reader.query(qis, true);
+            SAMRecordIterator query = null;
+            if (iIndex > -1) { // singe ref was specified
+                QueryInterval[] qis = {new QueryInterval(iIndex, iStart, iEnd)};
+                query = reader.query(qis, true);
+            } else if ((reference==null || reference.isEmpty()) && iIndex == -1) {
+                throw new GeneralStreamingException("Unknown reference: " + reference, 40);                
+            } else { // no ref - ignore start/end
+                query = reader.iterator();
+            }
 
             // Open return output stream - instatiate a SamFileWriter
             OutputStream out = null;
             SAMFileWriterFactory writerFactory = new SAMFileWriterFactory();
-            try {
+            if (query!=null) try {
                 out = response.getOutputStream();
                 if (format.equalsIgnoreCase("BAM")) {
                     try (SAMFileWriter writer = writerFactory.makeBAMWriter(fileHeader, true, out)) { // writes out header
@@ -617,10 +626,10 @@ public class RemoteFileServiceImpl implements FileService {
             }
             
             // If there's no file size in the database, obtain it from RES
-            if (reqFile.getFileSize() == 0) {
+//            if (reqFile.getFileSize() == 0) {
                 ResponseEntity<Long> forSize = restTemplate.getForEntity(RES_URL + "/file/archive/{file_id}/size", Long.class, file_id);
                 reqFile.setFileSize(forSize.getBody());
-            }
+//            }
         } else { // 404 File Not Found
             throw new NotFoundException(file_id, "4");
         }
