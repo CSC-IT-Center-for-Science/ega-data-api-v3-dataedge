@@ -87,7 +87,7 @@ public class OAuth2ResourceConfig extends ResourceServerConfigurerAdapter {
                 return myAccessTokenConverter;
 		//return new DefaultAccessTokenConverter();
 	}
-	
+/*	
         @Primary
 	@Bean
 	public RemoteTokenServices remoteTokenServices(final @Value("${auth.server.url}") String checkTokenUrl,
@@ -112,6 +112,37 @@ public class OAuth2ResourceConfig extends ResourceServerConfigurerAdapter {
 		remoteTokenServices.setClientId(clientId);
 		remoteTokenServices.setClientSecret(clientSecret);
 		//remoteTokenServices.setAccessTokenConverter(accessTokenConverter());
+		return remoteTokenServices;
+	}
+*/
+        @Primary
+	@Bean
+	public RemoteTokenServices remoteTokenServices(HttpServletRequest request, 
+	//public RemoteTokenServices combinedTokenServices(HttpServletRequest request, 
+                                final @Value("${auth.server.url}") String checkTokenUrl,
+                                final @Value("${auth.server.clientId}") String clientId,
+                                final @Value("${auth.server.clientsecret}") String clientSecret,
+                                final @Value("${auth.zuul.server.url}") String zuulCheckTokenUrl,
+                                final @Value("${auth.zuul.server.clientId}") String zuulClientId,
+                                final @Value("${auth.zuul.server.clientsecret}") String zuulClientSecret) {
+		final CachingRemoteTokenService remoteTokenServices = new CachingRemoteTokenService();
+                
+                String header = null;
+                try {
+                    header = request.getHeader("X-Permissions");
+                } catch (Throwable t) {System.out.println("Error " + t.getMessage());}
+                
+                if (header!=null && header.length()>0) {
+                    remoteTokenServices.setCheckTokenEndpointUrl(zuulCheckTokenUrl);
+                    remoteTokenServices.setClientId(zuulClientId);
+                    remoteTokenServices.setClientSecret(zuulClientSecret);                    
+                } else {
+                    remoteTokenServices.setCheckTokenEndpointUrl(checkTokenUrl);
+                    remoteTokenServices.setClientId(clientId);
+                    remoteTokenServices.setClientSecret(clientSecret);
+                    remoteTokenServices.setAccessTokenConverter(accessTokenConverter());
+                }
+                
 		return remoteTokenServices;
 	}
 }
