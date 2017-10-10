@@ -22,7 +22,6 @@ import java.util.concurrent.TimeUnit;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.EnableCaching;
-import org.springframework.cache.concurrent.ConcurrentMapCacheManager;
 import org.springframework.cache.guava.GuavaCache;
 import org.springframework.cache.support.SimpleCacheManager;
 import org.springframework.cloud.client.loadbalancer.LoadBalanced;

@@ -18,6 +18,7 @@ package eu.elixir.ega.ebi.dataedge.service.internal;
 import com.netflix.appinfo.InstanceInfo;
 import com.netflix.discovery.EurekaClient;
 import com.netflix.hystrix.contrib.javanica.annotation.HystrixCommand;
+import eu.elixir.ega.ebi.dataedge.config.InvalidAuthenticationException;
 import eu.elixir.ega.ebi.dataedge.config.NotFoundException;
 import eu.elixir.ega.ebi.dataedge.config.VerifyMessage;
 import eu.elixir.ega.ebi.dataedge.dto.File;
@@ -99,12 +100,16 @@ public class RemoteTicketServiceImpl implements TicketService {
                             HttpServletResponse response) {
         // Get Auth Token
         String token = request.getHeader("Authorization");
+        if (token==null || token.length()==0)
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                                 .contentType(MediaType.valueOf("application/vnd.ga4gh.htsget.v0.2+json; charset=utf-8"))
+                                 .body(new HtsgetContainer(new HtsgetErrorResponse("InvalidInput", "EGA requires oauth token")));
         
         // Ascertain Access Permissions for specified File ID
         File reqFile = null;
         try {
             reqFile = getReqFile(file_id, auth, request); // request added for ELIXIR
-        } catch (NotFoundException ex) {
+        } catch (NotFoundException ex ) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                                  .contentType(MediaType.valueOf("application/vnd.ga4gh.htsget.v0.2+json; charset=utf-8"))
                                  .body(new HtsgetContainer(new HtsgetErrorResponse("NotFound", "No such accession '" + file_id + "'")));
@@ -153,7 +158,8 @@ public class RemoteTicketServiceImpl implements TicketService {
     // *************************************************************************
     @HystrixCommand
     @Cacheable(cacheNames="reqFile")
-    private File getReqFile(String file_id, Authentication auth, HttpServletRequest request) {
+    private File getReqFile(String file_id, Authentication auth, HttpServletRequest request) 
+                throws NotFoundException {
 
         // Obtain all Authorised Datasets (Provided by EGA AAI)
         HashSet<String> permissions = new HashSet<>();
@@ -183,7 +189,7 @@ public class RemoteTicketServiceImpl implements TicketService {
         File reqFile = null;
         ResponseEntity<File[]> forEntity = restTemplate.getForEntity(SERVICE_URL + "/file/{file_id}", File[].class, file_id);
         File[] body = forEntity.getBody();
-        if (body!=null && bodyDataset!=null) {
+        if ((body!=null && body.length>0) && bodyDataset!=null) {
             for (FileDataset f:bodyDataset) {
                 String dataset_id = f.getDatasetId();
                 if (permissions.contains(dataset_id) && body.length>=1) {
@@ -193,8 +199,9 @@ public class RemoteTicketServiceImpl implements TicketService {
                 }
             }
         } else { // 404 File Not Found
-            throw new NotFoundException(file_id, "99");
+            throw new NotFoundException(file_id, "File not found.");
         }
+        
         return reqFile;
     }
 
