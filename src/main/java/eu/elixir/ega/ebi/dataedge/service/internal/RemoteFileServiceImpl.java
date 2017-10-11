@@ -371,26 +371,22 @@ public class RemoteFileServiceImpl implements FileService {
                 URL resUrl = new URL(resUrl() + "file/archive/" + reqFile.getFileId()); // Just specify file ID
                 //SeekableStream cIn = (new EgaSeekableResStream(resUrl, null, null, reqFile.getFileSize())).setExtension(extension); // Deals with coordinates
                 SeekableStream cIn = (new EgaSeekableCachedResStream(resUrl, null, null, reqFile.getFileSize())).setExtension(extension); // Deals with coordinates
-                bIn = new SeekableBufferedStream(cIn);
-                
+                //bIn = new SeekableBufferedStream(cIn);
                 // BAI/CRAI File
                 FileIndexFile fileIndexFile = getFileIndexFile(reqFile.getFileId());
                 File reqIndexFile = getReqFile(fileIndexFile.getIndexFileId(), auth, null);
                 URL indexUrl = new URL(resUrl() + "file/archive/" + fileIndexFile.getIndexFileId()); // Just specify index ID
-                //InputStream cIndexIn = new EgaSeekableResStream(indexUrl, null, null, reqIndexFile.getFileSize());
-                //InputStream myIndexIn = new BufferedInputStream(cIndexIn);
-                //SeekableStream cIndexIn = new EgaSeekableResStream(indexUrl, null, null, reqIndexFile.getFileSize());
-                SeekableStream cIndexIn = new EgaSeekableCachedResStream(indexUrl, null, null, reqIndexFile.getFileSize());
-                bIndexIn = new SeekableBufferedStream(cIndexIn);
+                SeekableStream cIndexIn = (new EgaSeekableCachedResStream(indexUrl, null, null, reqIndexFile.getFileSize()));
+                //bIndexIn = new SeekableBufferedStream(cIndexIn);
 
-                inputResource = SamInputResource.of(bIn).index(cIndexIn);
+                inputResource = SamInputResource.of(cIn).index(cIndexIn);
             } catch (Exception ex) {
                 throw new InternalErrorException(ex.getMessage(), "9");
             }
 
             // SamReader with input stream based on RES URL (should work for BAM or CRAM)
             SamReader reader = (x==null) ?
-                (SamReaderFactory.make()            // BAM FIle 
+                (SamReaderFactory.make()            // BAM File 
                   .validationStringency(ValidationStringency.LENIENT)
                   .enable(Option.CACHE_FILE_BASED_INDEXES)
                   .samRecordFactory(DefaultSAMRecordFactory.getInstance())
@@ -412,8 +408,9 @@ public class RemoteFileServiceImpl implements FileService {
             int iEnd = (int)(end);
             SAMRecordIterator query = null;
             if (iIndex > -1) { // singe ref was specified
-                QueryInterval[] qis = {new QueryInterval(iIndex, iStart, iEnd)};
-                query = reader.query(qis, true);
+                //QueryInterval[] qis = {new QueryInterval(iIndex, iStart, iEnd)};
+                //query = reader.query(qis, true);
+                query = reader.query(reference, iStart, iEnd, false);
             } else if ((reference==null || reference.isEmpty()) && iIndex == -1) {
                 throw new GeneralStreamingException("Unknown reference: " + reference, 40);                
             } else { // no ref - ignore start/end
@@ -431,6 +428,7 @@ public class RemoteFileServiceImpl implements FileService {
                         Iterator<SAMRecord> iterator = stream.iterator();
                         while (iterator.hasNext()) {
                             SAMRecord next = iterator.next();
+//System.out.println(next.toString());
                             writer.addAlignment(next);
                         }
                         writer.close();
