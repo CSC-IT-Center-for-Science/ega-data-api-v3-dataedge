@@ -591,14 +591,10 @@ public class RemoteFileServiceImpl implements FileService {
                 permissions.add(next.getAuthority());
             }
         } else if (request!=null) { // ELIXIR User Case: Obtain Permmissions from X-Permissions Header
-            //String permissions_ = request.getHeader("X-Permissions");
             try {
                 List<String> permissions_ = (new VerifyMessage(request.getHeader("X-Permissions"))).getPermissions();
                 if (permissions_ != null && permissions_.size() > 0) {
-                    //StringTokenizer t = new StringTokenizer(permissions_, ",");
-                    //while (t!=null && t.hasMoreTokens()) {
-                    for (String ds:permissions) {
-                        //String ds = t.nextToken();
+                    for (String ds:permissions_) {
                         if (ds != null) {
                             permissions.add(ds);
                         }
