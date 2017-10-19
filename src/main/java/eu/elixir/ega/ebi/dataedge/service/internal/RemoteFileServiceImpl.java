@@ -45,13 +45,11 @@ import eu.elixir.ega.ebi.egacipher.EgaSeekableCachedResStream;
 import eu.elixir.ega.ebi.egacipher.EgaSeekableResStream;
 import htsjdk.samtools.CRAMFileWriter;
 import htsjdk.samtools.DefaultSAMRecordFactory;
-import htsjdk.samtools.QueryInterval;
 import htsjdk.samtools.SAMFileHeader;
 import htsjdk.samtools.SAMFileWriter;
 import htsjdk.samtools.SAMFileWriterFactory;
 import htsjdk.samtools.SAMRecord;
 import htsjdk.samtools.SAMRecordIterator;
-import htsjdk.samtools.SAMSequenceRecord;
 import htsjdk.samtools.SamInputResource;
 import htsjdk.samtools.SamReader;
 import htsjdk.samtools.SamReaderFactory;
@@ -70,7 +68,6 @@ import java.net.URL;
 import java.security.DigestInputStream;
 import java.security.DigestOutputStream;
 import java.security.MessageDigest;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collection;
@@ -356,8 +353,8 @@ public class RemoteFileServiceImpl implements FileService {
             // SeekableStream on top of RES (using Eureka to obtain RES Base URL)
             SamInputResource inputResource = null;
             CRAMReferenceSource x = null;
-            SeekableBufferedStream bIn = null, 
-                                   bIndexIn = null;
+            //SeekableBufferedStream bIn = null, 
+            //                       bIndexIn = null;
             try {
                 String extension = "";
                 if (reqFile.getFileName().contains(".bam")) {
@@ -385,32 +382,29 @@ public class RemoteFileServiceImpl implements FileService {
             }
 
             // SamReader with input stream based on RES URL (should work for BAM or CRAM)
-            SamReader reader = (x==null) ?
+            SamReader reader = (x==null)?
                 (SamReaderFactory.make()            // BAM File 
                   .validationStringency(ValidationStringency.LENIENT)
                   .enable(Option.CACHE_FILE_BASED_INDEXES)
                   .samRecordFactory(DefaultSAMRecordFactory.getInstance())
-                  .open(inputResource)) :
+                  .open(inputResource)):
                 (SamReaderFactory.make()            // CRAM File
                   .referenceSource(x)
                   .validationStringency(ValidationStringency.LENIENT)
                   .enable(Option.CACHE_FILE_BASED_INDEXES)
                   .samRecordFactory(DefaultSAMRecordFactory.getInstance())
-                  .open(inputResource)) ;                    
+                  .open(inputResource));
             
             SAMFileHeader fileHeader = reader.getFileHeader();
-//System.out.println("HEADER :: " + fileHeader.getTextHeader());
             int iIndex = fileHeader.getSequenceIndex(reference);
-//System.out.println("REFERENCE :: " + reference + "     (" + iIndex + ")");
 
             // Handle Request here - query Reader according to parameters
             int iStart = (int)(start);
             int iEnd = (int)(end);
             SAMRecordIterator query = null;
-            if (iIndex > -1) { // singe ref was specified
-                //QueryInterval[] qis = {new QueryInterval(iIndex, iStart, iEnd)};
-                //query = reader.query(qis, true);
-                query = reader.query(reference, iStart, iEnd, false);
+            if (iIndex > -1) { // ref was specified
+                //query = reader.query(reference, iStart, iEnd, false);
+                query = reader.queryOverlapping(reference, iStart, iEnd);
             } else if ((reference==null || reference.isEmpty()) && iIndex == -1) {
                 throw new GeneralStreamingException("Unknown reference: " + reference, 40);                
             } else { // no ref - ignore start/end
@@ -428,7 +422,6 @@ public class RemoteFileServiceImpl implements FileService {
                         Iterator<SAMRecord> iterator = stream.iterator();
                         while (iterator.hasNext()) {
                             SAMRecord next = iterator.next();
-//System.out.println(next.toString());
                             writer.addAlignment(next);
                         }
                         writer.close();
@@ -606,6 +599,7 @@ public class RemoteFileServiceImpl implements FileService {
                 }            
             } catch (Exception ex) {}
         }
+//permissions.add("EGAD00001003338");
         
         ResponseEntity<FileDataset[]> forEntityDataset = restTemplate.getForEntity(SERVICE_URL + "/file/{file_id}/datasets", FileDataset[].class, file_id);
         FileDataset[] bodyDataset = forEntityDataset.getBody();        
