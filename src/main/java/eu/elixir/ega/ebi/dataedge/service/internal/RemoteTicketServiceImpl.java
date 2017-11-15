@@ -102,7 +102,7 @@ public class RemoteTicketServiceImpl implements TicketService {
         String token = request.getHeader("Authorization");
         if (token==null || token.length()==0)
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                                 .contentType(MediaType.valueOf("application/vnd.ga4gh.htsget.v0.2+json; charset=utf-8"))
+                                 .contentType(MediaType.valueOf("application/vnd.ga4gh.htsget.v1.0+json; charset=utf-8"))
                                  .body(new HtsgetContainer(new HtsgetErrorResponse("InvalidInput", "EGA requires oauth token")));
         
         // Ascertain Access Permissions for specified File ID
@@ -111,7 +111,7 @@ public class RemoteTicketServiceImpl implements TicketService {
             reqFile = getReqFile(file_id, auth, request); // request added for ELIXIR
         } catch (NotFoundException ex ) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                                 .contentType(MediaType.valueOf("application/vnd.ga4gh.htsget.v0.2+json; charset=utf-8"))
+                                 .contentType(MediaType.valueOf("application/vnd.ga4gh.htsget.v1.0+json; charset=utf-8"))
                                  .body(new HtsgetContainer(new HtsgetErrorResponse("NotFound", "No such accession '" + file_id + "'")));
         }
         
@@ -119,7 +119,7 @@ public class RemoteTicketServiceImpl implements TicketService {
         reference = ( referenceIndex>-1 || (referenceName!=null && referenceName.length()>0) || (referenceMD5!=null && referenceMD5.length()>0) );
         if ( !reference && ( (start!=null && start.length() > 0) || (end!=null && end.length() > 0) ) ) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                                 .contentType(MediaType.valueOf("application/vnd.ga4gh.htsget.v0.2+json; charset=utf-8"))
+                                 .contentType(MediaType.valueOf("application/vnd.ga4gh.htsget.v1.0+json; charset=utf-8"))
                                  .body(new HtsgetContainer(new HtsgetErrorResponse("InvalidInput", "range specified without reference")));
         }
         
@@ -145,12 +145,12 @@ public class RemoteTicketServiceImpl implements TicketService {
             urls.add(new HtsgetUrl(url, authHeader));
 
             return ResponseEntity.status(HttpStatus.OK)
-                                 .contentType(MediaType.valueOf("application/vnd.ga4gh.htsget.v0.2+json; charset=utf-8"))
+                                 .contentType(MediaType.valueOf("application/vnd.ga4gh.htsget.v1.0+json; charset=utf-8"))
                                  .body(new HtsgetContainer(new HtsgetResponse(format.toUpperCase(), urls.toArray(new HtsgetUrl[urls.size()]))));
         }
         
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                             .contentType(MediaType.valueOf("application/vnd.ga4gh.htsget.v0.2+json; charset=utf-8"))
+                             .contentType(MediaType.valueOf("application/vnd.ga4gh.htsget.v1.0+json; charset=utf-8"))
                              .body(new HtsgetContainer(new HtsgetErrorResponse("UnAuthorized", "No authorization for accession '" + file_id + "'")));
     }
 
@@ -232,7 +232,7 @@ public class RemoteTicketServiceImpl implements TicketService {
             
         } catch (NotFoundException ex) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                                 .contentType(MediaType.valueOf("application/vnd.ga4gh.htsget.v0.2rc+json; charset=utf-8"))
+                                 .contentType(MediaType.valueOf("application/vnd.ga4gh.htsget.v1.0rc+json; charset=utf-8"))
                                  .body(new HtsgetContainer(new HtsgetErrorResponse("NotFound", "No such accession '" + file_id + "'")));
         }
         
@@ -291,7 +291,7 @@ public class RemoteTicketServiceImpl implements TicketService {
                 }
 
                 return ResponseEntity.status(HttpStatus.OK)
-                                     .contentType(MediaType.valueOf("application/vnd.ga4gh.htsget.v0.2rc+json; charset=utf-8"))
+                                     .contentType(MediaType.valueOf("application/vnd.ga4gh.htsget.v1.0rc+json; charset=utf-8"))
                                      .body(new HtsgetContainer(new HtsgetResponse(format.toUpperCase(), urls.toArray(new HtsgetUrl[urls.size()]))));
             }
         } catch (Throwable th) {
@@ -299,7 +299,7 @@ public class RemoteTicketServiceImpl implements TicketService {
         }
         
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                             .contentType(MediaType.valueOf("application/vnd.ga4gh.htsget.v0.2rc+json; charset=utf-8"))
+                             .contentType(MediaType.valueOf("application/vnd.ga4gh.htsget.v1.0rc+json; charset=utf-8"))
                              .body(new HtsgetContainer(new HtsgetErrorResponse("UnAuthorized", "No authorization for accession '" + file_id + "'")));
     }
 

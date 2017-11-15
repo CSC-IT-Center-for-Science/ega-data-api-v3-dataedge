@@ -57,8 +57,14 @@ import htsjdk.samtools.SamReaderFactory.Option;
 import htsjdk.samtools.ValidationStringency;
 import htsjdk.samtools.cram.ref.CRAMReferenceSource;
 import htsjdk.samtools.cram.ref.ReferenceSource;
-import htsjdk.samtools.seekablestream.SeekableBufferedStream;
 import htsjdk.samtools.seekablestream.SeekableStream;
+import htsjdk.samtools.util.CloseableIterator;
+import htsjdk.samtools.util.CloserUtil;
+import htsjdk.variant.variantcontext.VariantContext;
+import htsjdk.variant.variantcontext.writer.VariantContextWriter;
+import htsjdk.variant.variantcontext.writer.VariantContextWriterBuilder;
+import htsjdk.variant.vcf.MyVCFFileReader;
+import htsjdk.variant.vcf.VCFHeader;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.math.BigInteger;
@@ -273,56 +279,6 @@ public class RemoteFileServiceImpl implements FileService {
         return header;
     }
 
-/*    
-    protected SAMFileHeader readHeader(final BinaryCodec stream, final ValidationStringency validationStringency, final String source)
-        throws IOException {
-
-        final byte[] buffer = new byte[4];
-        stream.readBytes(buffer);
-        if (!Arrays.equals(buffer, BAMFileConstants.BAM_MAGIC)) {
-            throw new IOException("Invalid BAM file header");
-        }
-
-        final int headerTextLength = stream.readInt();
-        final String textHeader = stream.readString(headerTextLength);
-        final SAMTextHeaderCodec headerCodec = new SAMTextHeaderCodec();
-        headerCodec.setValidationStringency(validationStringency);
-        final SAMFileHeader samFileHeader = headerCodec.decode(new StringLineReader(textHeader),
-                source);
-
-        final int sequenceCount = stream.readInt();
-        if (!samFileHeader.getSequenceDictionary().isEmpty()) {
-            // It is allowed to have binary sequences but no text sequences, so only validate if both are present
-            if (sequenceCount != samFileHeader.getSequenceDictionary().size()) {
-                throw new SAMFormatException("Number of sequences in text header (" +
-                        samFileHeader.getSequenceDictionary().size() +
-                        ") != number of sequences in binary header (" + sequenceCount + ") for file " + source);
-            }
-            for (int i = 0; i < sequenceCount; i++) {
-                final SAMSequenceRecord binarySequenceRecord = readSequenceRecord(stream, source);
-                final SAMSequenceRecord sequenceRecord = samFileHeader.getSequence(i);
-                if (!sequenceRecord.getSequenceName().equals(binarySequenceRecord.getSequenceName())) {
-                    throw new SAMFormatException("For sequence " + i + ", text and binary have different names in file " +
-                            source);
-                }
-                if (sequenceRecord.getSequenceLength() != binarySequenceRecord.getSequenceLength()) {
-                    throw new SAMFormatException("For sequence " + i + ", text and binary have different lengths in file " +
-                            source);
-                }
-            }
-        } else {
-            // If only binary sequences are present, copy them into samFileHeader
-            final List<SAMSequenceRecord> sequences = new ArrayList<SAMSequenceRecord>(sequenceCount);
-            for (int i = 0; i < sequenceCount; i++) {
-                sequences.add(readSequenceRecord(stream, source));
-            }
-            samFileHeader.setSequenceDictionary(new SAMSequenceDictionary(sequences));
-        }
-
-        return samFileHeader;
-    }
-*/    
-    
     @Override
     @HystrixCommand
     public void getById(Authentication auth, 
@@ -403,7 +359,6 @@ public class RemoteFileServiceImpl implements FileService {
             int iEnd = (int)(end);
             SAMRecordIterator query = null;
             if (iIndex > -1) { // ref was specified
-                //query = reader.query(reference, iStart, iEnd, false);
                 query = reader.queryOverlapping(reference, iStart, iEnd);
             } else if ((reference==null || reference.isEmpty()) && iIndex == -1) {
                 throw new GeneralStreamingException("Unknown reference: " + reference, 40);                
@@ -442,11 +397,107 @@ public class RemoteFileServiceImpl implements FileService {
             } catch (Throwable t) { // Log Error!
                 EventEntry eev = getEventEntry(t, "TODO ClientIp", "Direct GA4GH Download", auth.getName());
                 downloaderLogService.logEvent(eev);
-
+                System.out.println("ERROR 4 " + t.toString());
                 throw new GeneralStreamingException(t.toString(), 4);
             } finally {
                 if (out != null) try {out.close();} catch (IOException ex) {;}
             }
+        } else { // If no 404 was found, this is a permissions denied error
+            throw new PermissionDeniedException(accession);
+        }
+    }
+    
+    @Override
+    @HystrixCommand
+    public void getVCFById(Authentication auth, 
+                           String idType,
+                           String accession, 
+                           String format, 
+                           String reference,
+                           long start, 
+                           long end, 
+                           boolean header,
+                           String destinationFormat, 
+                           String destinationKey, 
+                           HttpServletRequest request, 
+                           HttpServletResponse response) {
+        
+        // Adding a content header in the response: binary data
+        response.addHeader("Content-Type", MediaType.valueOf("application/octet-stream").toString());
+        
+        String file_id = "";
+        if (idType.equalsIgnoreCase("file")) { // Currently only support File IDs
+            file_id = accession;
+        }
+        
+        // Ascertain Access Permissions for specified File ID
+        File reqFile = getReqFile(file_id, auth, request);
+        if (reqFile!=null) {
+            URL resUrl, indexUrl;
+            
+            try {
+                String extension = "";
+                if (reqFile.getFileName().contains(".vcf")) {
+                        extension = ".vcf";
+                } else if (reqFile.getFileName().contains(".bcf")) {
+                        extension = ".bcf";
+                }
+                
+                // VCF File
+                resUrl = new URL(resUrl() + "file/archive/" + reqFile.getFileId()); // Just specify file ID
+                SeekableStream cIn = (new EgaSeekableCachedResStream(resUrl, null, null, reqFile.getFileSize())).setExtension(extension); // Deals with coordinates
+                FileIndexFile fileIndexFile = getFileIndexFile(reqFile.getFileId());
+                File reqIndexFile = getReqFile(fileIndexFile.getIndexFileId(), auth, null);
+                indexUrl = new URL(resUrl() + "file/archive/" + fileIndexFile.getIndexFileId()); // Just specify index ID
+                SeekableStream cIndexIn = (new EgaSeekableCachedResStream(indexUrl, null, null, reqIndexFile.getFileSize()));
+
+            } catch (Exception ex) {
+                throw new InternalErrorException(ex.getMessage(), "19");
+            }
+
+            // VCFFileReader with input stream based on RES URL
+            MyVCFFileReader reader = new MyVCFFileReader(resUrl.toString(), 
+                                                         indexUrl.toString(),
+                                                         false);
+            
+            VCFHeader fileHeader = reader.getFileHeader();
+
+            // Handle Request here - query Reader according to parameters
+            int iStart = (int)(start);
+            int iEnd = (int)(end);
+            CloseableIterator<VariantContext> query = null;
+            if ((iEnd-iStart) > 0 && reference != null && reference.length() > 0) { // ref was specified
+                query = reader.query(reference, iStart, iEnd);
+            } else { // no ref - ignore start/end
+                query = reader.iterator();
+            }
+
+            // Open return output stream - instatiate a SamFileWriter
+            OutputStream out;
+            try {
+                out = response.getOutputStream();
+                
+                VariantContextWriterBuilder builder = new VariantContextWriterBuilder().
+                        setOutputVCFStream(out).
+                        setReferenceDictionary(fileHeader.getSequenceDictionary());
+
+                final VariantContextWriter writer = builder.build();
+                writer.writeHeader(fileHeader);
+
+                while (query.hasNext()) {
+                        final VariantContext context = query.next();
+                    writer.add(context);
+                }
+
+                CloserUtil.close(query);
+                CloserUtil.close(reader);
+                
+                writer.close();
+            } catch (IOException ex) {
+                throw new InternalErrorException(ex.getMessage(), "20");
+            }
+            
+                
         } else { // If no 404 was found, this is a permissions denied error
             throw new PermissionDeniedException(accession);
         }

@@ -109,6 +109,37 @@ public class FileController {
                             request, 
                             response);
     }
+    
+    @RequestMapping(value = "/variant/byid/{type}", method = GET)
+    @ResponseBody
+    public void getByVariantId(@PathVariable String type,
+                        @RequestParam(value = "accession", required = true) String accession,
+                        @RequestParam(value = "format", required = false, defaultValue = "bam") String format,
+                        @RequestParam(value = "chr", required = false, defaultValue = "") String reference,
+                        @RequestParam(value = "start", required = false, defaultValue = "0") long start,
+                        @RequestParam(value = "end", required = false, defaultValue = "0") long end, 
+                        @RequestParam(value = "header", required = false, defaultValue = "true") Boolean header, 
+                        @RequestParam(value = "destinationFormat", required = false, defaultValue="aes128") String destinationFormat,
+                        @RequestParam(value = "destinationKey", required = false, defaultValue = "") String destinationKey,
+                        HttpServletRequest request,
+                        HttpServletResponse response) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth==null) {
+            throw new InvalidAuthenticationException(accession);
+        }
+        fileService.getVCFById(auth,
+                            type, 
+                            accession, 
+                            format, 
+                            reference,
+                            start, 
+                            end, 
+                            header,
+                            destinationFormat,
+                            destinationKey,
+                            request, 
+                            response);
+    }
 
     @RequestMapping(value = "/byid/{type}", method = HEAD)
     @ResponseBody

@@ -52,6 +52,19 @@ public interface FileService {
                         String destinationKey,
                         HttpServletRequest request,
                         HttpServletResponse response);
+
+    public void getVCFById(Authentication auth, 
+                           String file_id,
+                           String accession,
+                           String format,
+                           String reference,
+                           long start,
+                           long end, 
+                           boolean header,
+                           String destinationFormat,
+                           String destinationKey,
+                           HttpServletRequest request,
+                           HttpServletResponse response);
     
     public ResponseEntity getHeadById(Authentication auth, 
                             String file_id,
